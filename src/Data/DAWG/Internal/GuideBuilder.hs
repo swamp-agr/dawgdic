@@ -1,9 +1,9 @@
+{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.GuideBuilder where
 
 import Control.Monad (when)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Data.Bits
-import Data.Char
 import Data.Primitive.MutVar
 
 import Data.Primitive.PrimArray.Combinators
@@ -20,6 +20,11 @@ import qualified Data.Vector.Unboxed as UV
 import qualified Data.DAWG.Internal.DAWG as Dawg
 import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
+
+#ifdef trace
+import Data.Char
+import Data.DAWG.Trace
+#endif
 
 -- ** Guide Builder
 
@@ -71,12 +76,14 @@ resizeUnitsAndFlagsForGuide GRef{..} = do
 
 buildGuideFromIndexes :: GuideM m => BaseType -> BaseType -> GuideBuilder_ m -> m (Maybe ())
 buildGuideFromIndexes !dawgIx !dictIx !gb = do
+#ifdef trace
   ifd <- isFixedGuideBuilder dictIx gb
-  trace $ concat
+  traceIO $ concat
     ["buildGuide dawgIx ", show dawgIx
     , " dawgChildIx ", show $ Dawg.child dawgIx (guideBuilderDawg gb)
     , " dictIx ", show dictIx, " is_fixed_dix ", show ifd
     ]
+#endif
   isFixedGuideBuilder dictIx gb >>= \case
     True -> pure (Just ())
     False -> do
@@ -87,11 +94,13 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
           !dict = guideBuilderDictionary gb
           !dawgChildIx = Dawg.child dawgIx dawg
       dawgChildIxRef <- newMutVar dawgChildIx
-      trace $ concat
+#ifdef trace
+      traceIO $ concat
         [ "-buildGuide dawgChildIx ", show dawgChildIx
         , " l ", show $ chr $ fromIntegral $ Dawg.label dawgChildIx dawg
         , " (", show $ Dawg.label dawgChildIx dawg, ")"
         ]
+#endif
       when (Dawg.label dawgChildIx dawg == 0) do
         writeMutVar dawgChildIxRef $! Dawg.sibling dawgChildIx dawg
 
@@ -106,18 +115,21 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
                 | ix == 0 = pure $ Just ()
                 | otherwise = do
                     let !childLabel = Dawg.label ix dawg
-                    trace $ concat
+#ifdef trace
+                    traceIO $ concat
                       ["-go dawgChildIx ", show ix, " dictChildIx ", show dictIx'
                       , " childLabel ", show childLabel
                       ]
-
+#endif
                     case Dict.followChar (fromIntegral childLabel) dictIx' dict of
                       Nothing -> pure Nothing
                       Just dictChildIx -> do
-                        trace $ concat
+#ifdef trace
+                        traceIO $ concat
                           [ "-go follow dawgChildIx ", show ix
                           , " dictChildIx ", show dictChildIx
                           ]
+#endif
                         -- outer recursion loop
                         buildGuideFromIndexes ix dictChildIx gb >>= \case
                           Nothing -> pure Nothing

@@ -56,6 +56,11 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
+flag trace
+     description: Enable tracing
+     manual: True
+     default: False
+
 library
     -- Import common warning flags.
     import:           warnings
@@ -88,6 +93,10 @@ library
                       Data.DAWG.Build
                       Data.DAWG.Find
                       Data.DAWG.Test
+    if flag(trace)
+      cpp-options: -Dtrace
+      hs-source-dirs: src-trace
+      exposed-modules: Data.DAWG.Trace
 
     -- Modules included in this library but not exported.
     -- other-modules:
