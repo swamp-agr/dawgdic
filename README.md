@@ -34,4 +34,10 @@ Add `dawgdic` dependency to your project and run `cabal build`.
 
 ## Contributing
 
+In cases of issues please attach callstack, provide minimal dictionary lexicon and provide logs with enabled tracing.
+
+```
+cabal build -ftrace
+```
+
 ## Acknowledgments
