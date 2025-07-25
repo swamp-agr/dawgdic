@@ -12,7 +12,7 @@ import qualified Data.DAWG.Internal.Completer as C
 import qualified Data.DAWG.Internal.Guide as G
 import qualified Data.DAWG.Internal.GuideBuilder as GB
 
-import Control.Monad (forM_, when)
+import Control.Monad (forM_)
 import Data.Char (ord)
 import Data.Maybe (fromMaybe, isJust)
 import Test.Hspec

@@ -35,4 +35,3 @@ type UUHT m k v = HT.Dictionary (PrimState m) UV.MVector k UV.MVector v
 
 type UHHT m k v = HT.Dictionary (PrimState m) UV.MVector k UM.MVector (UUHT m k v)
 
-trace str = HT.unsafeIOToPrim . putStrLn $ str

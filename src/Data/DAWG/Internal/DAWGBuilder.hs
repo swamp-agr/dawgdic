@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.DAWGBuilder where
 
 import Control.Monad (forM_, when, unless)
@@ -11,7 +12,6 @@ import Data.Primitive.MutVar
 import Data.Vector (Vector)
 import GHC.Stack (HasCallStack)
 import Prelude hiding (init)
-import Unsafe.Coerce (unsafeCoerce)
 
 import Data.Primitive.PrimArray.Combinators
 import Data.DAWG.Internal.BaseType
@@ -29,6 +29,10 @@ import qualified Data.Vector as Vector
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Generic.Mutable as V
 import qualified Data.Vector.Hashtables as HT
+
+#ifdef trace
+import Data.DAWG.Trace
+#endif
 
 -- ** DAWG Builder
 
@@ -145,13 +149,24 @@ insertKey ks l v dbref@DBRef{..} = do
                 let !keyLabel = if keyPos < fromIntegral l then ks Vector.! keyPos else '\0'
                 !u' <- dawgBuilderUnitPool db !~ childIx
                 let !unitLabel = DawgUnit.label u'
-                trace ("findSeparateUnit ix " <> show ix <> " keyPos " <> show keyPos <> " keyLabel " <> show keyLabel <> " (" <> show (ord keyLabel) <> ") unitLabel " <> show (chr $ fromIntegral unitLabel) <> " (" <> show unitLabel <> ")")
+#ifdef trace
+                traceIO $ concat
+                  [ "findSeparateUnit ix ", show ix
+                  , " keyPos ", show keyPos
+                  , " keyLabel ", show keyLabel
+                  , " (", show $ ord keyLabel
+                  , ") unitLabel ",show $ chr $ fromIntegral unitLabel
+                  , " (", show unitLabel, ")"
+                  ]
+#endif
                 if ord keyLabel < fromIntegral unitLabel
                   then pure Nothing
                   else if ord keyLabel > fromIntegral unitLabel
                     then do
                       dawgBuilderUnitPool db <~~ childIx $ DawgUnit.setHasSibling u' True
-                      trace ("findSeparateUnit ix " <> show ix <> " keyPos " <> show keyPos)
+#ifdef trace
+                      traceIO ("findSeparateUnit ix " <> show ix <> " keyPos " <> show keyPos)
+#endif
                       fixUnits childIx dbref
                       pure $ Just (ix, keyPos)
                     else findSeparateUnit (childIx, succ keyPos)
@@ -185,8 +200,10 @@ insertKey ks l v dbref@DBRef{..} = do
       lu <- dawgBuilderUnitPool ndb !~ lastIx
       dawgBuilderUnitPool ndb <~~ lastIx $ DawgUnit.setChild lu (fromIntegral v)
 
+#ifdef trace
       do
-        (HT.unsafeIOToPrim . dump . unsafeCoerce) dbref
+        traceWith dump dbref
+#endif
 
       pure True
 
@@ -198,17 +215,23 @@ finish dbref@DBRef{..} = do
     db0 <- readMutVar unDBRef
     htsize <- HT.size $ dawgBuilderHashTable db0
     when (htsize == 0) $ init dbref
-    trace ("finish")
+#ifdef trace
+    traceIO "finish"
+#endif
     fixUnits 0 dbref
 
   db <- readMutVar unDBRef
   unit0 <- dawgBuilderUnitPool db !~ 0
-  trace $ "finish: u0 " <> show unit0
+#ifdef trace
+  traceIO $ "finish: u0 " <> show unit0
+#endif
   dawgBuilderBasePool db <~~ 0 $ BaseUnit $ DawgUnit.base unit0
   dawgBuilderLabelPool db <~~ 0 $ DawgUnit.label unit0
 
+#ifdef trace
   b0 <- dawgBuilderBasePool db !~ 0
-  trace $ "finish: b0 " <> show b0
+  traceIO $ "finish: b0 " <> show b0
+#endif
 
   fbasePool <- VG.unsafeFreeze $ dawgBuilderBasePool db
   flabelPool <- VG.unsafeFreeze $ dawgBuilderLabelPool db
@@ -314,9 +337,11 @@ fixUnits !index dbref@DBRef{..} = do
       deleteFixedUnits !db !current = do
           !unit' <- dawgBuilderUnitPool db !~ current
           let !next = DawgUnit.sibling unit'
-          trace $ concat
+#ifdef trace
+          traceIO $ concat
             [ "-deleteFixedUnit cur ", show current
             , " next ", show next]
+#endif
           freeUnit db current
           deleteFixedUnits db next
 
@@ -326,8 +351,10 @@ fixUnits !index dbref@DBRef{..} = do
           Nothing -> pure ()
           Just !unfixedIx -> do
             unless (unfixedIx == index) do
-              trace ("goStack ix " <> show index <> " uix " <> show unfixedIx)
-              HT.unsafeIOToPrim . dump . unsafeCoerce $ dbref
+#ifdef trace
+              traceIO ("goStack ix " <> show index <> " uix " <> show unfixedIx)
+              traceWith dump dbref
+#endif
               pop (dawgBuilderUnfixedUnits db)
 
               numOfStates' <- dawgBuilderRefs db ! numOfStates
@@ -337,11 +364,13 @@ fixUnits !index dbref@DBRef{..} = do
 
               numOfSiblings <- countSiblings 0 unfixedIx
               (hashId, matchedIx) <- findUnit unfixedIx dbref
-              trace $ concat
+#ifdef trace
+              traceIO $ concat
                 [ "goStack unfixedIx ", show unfixedIx
                 , " hashId ", show hashId
                 , " matchedIx ", show matchedIx
                 ]
+#endif
 
               nextMatchedIx <- if matchedIx /= 0
                 then do
@@ -358,15 +387,19 @@ fixUnits !index dbref@DBRef{..} = do
                   pure matchedIx
                 else do
                   !startTransitionIndex <- getTransitionIndex numOfSiblings 0 0
-                  trace $ concat
+#ifdef trace
+                  traceIO $ concat
                     [ "goStack matchedIx 0 nos ", show numOfSiblings
                     , " start tix ", show startTransitionIndex ]
+#endif
                   -- re-read from mutable variable
                   ndb <- readMutVar unDBRef
                   !transitionIndex <- goBaseLabel unfixedIx startTransitionIndex
-                  trace $ concat
+#ifdef trace
+                  traceIO $ concat
                     [ "goStack matchedIx 0 nos ", show numOfSiblings
                     , " end tix ", show transitionIndex ]
+#endif
                   let newMatchedIx = succ transitionIndex
                   HT.insert (dawgBuilderHashTable ndb) hashId newMatchedIx
                   prevStates <- dawgBuilderRefs ndb ! numOfStates
@@ -380,10 +413,12 @@ fixUnits !index dbref@DBRef{..} = do
               top (dawgBuilderUnfixedUnits ndb) >>= \case
                 Nothing -> pure ()
                 Just !nextUnfixedIx -> do
-                  trace $ concat
+#ifdef trace
+                  traceIO $ concat
                     [ "goStack setChild unfixedIx ", show nextUnfixedIx
                     , " matchedIx ", show nextMatchedIx
                     ]
+#endif
 
                   dawgBuilderUnitPool ndb !<~~ nextUnfixedIx
                     $! flip DawgUnit.setChild nextMatchedIx
@@ -391,7 +426,9 @@ fixUnits !index dbref@DBRef{..} = do
               writeMutVar unDBRef ndb
               goStack
 
-  trace ("fixUnits ix " <> show index)
+#ifdef trace
+  traceIO ("fixUnits ix " <> show index)
+#endif
   goStack
   readMutVar unDBRef >>= \ldb -> do
     pop (dawgBuilderUnfixedUnits ldb)
@@ -449,19 +486,31 @@ findUnit !unitIndex dbref@DBRef{..} = do
           else do
             mTransitionId <- HT.lookup (dawgBuilderHashTable db) hid
             let transitionId = fromMaybe 0 mTransitionId
-            trace $ concat ["-findUnit uix ", show unitIndex, " hid ", show hid, " tix ", show transitionId]
+#ifdef trace
+            traceIO $ concat
+              ["-findUnit uix ", show unitIndex
+              , " hid ", show hid
+              , " tix ", show transitionId
+              ]
+#endif
             if transitionId == 0
               then pure (hid, transitionId)
               else areEqual unitIndex transitionId dbref >>= \case
-                True -> trace (concat ["--areEqual uix ", show unitIndex, " tix ", show transitionId])
-                        >> pure (hid, transitionId)
+                True -> do
+#ifdef trace
+                  traceIO $ concat
+                    ["--areEqual uix ", show unitIndex, " tix ", show transitionId]
+#endif
+                  pure (hid, transitionId)
                 False -> findInTable (succ hid)
 
-  trace $ concat
+#ifdef trace
+  traceIO $ concat
     ["-findUnit uix ", show unitIndex
     , " start hid ", show hashId
     , " ht.size ", show htsize
     ]
+#endif
   findInTable hashId
 
 areEqual
@@ -471,18 +520,27 @@ areEqual !unitIndex !transitionIndex !DBRef{..} = do
   db <- readMutVar unDBRef
   !startUnit <- dawgBuilderUnitPool db !~ unitIndex
   let !startIx = DawgUnit.sibling startUnit
-  trace $ concat
+#ifdef trace
+  traceIO $ concat
     [ "--areEqual start ", show startIx, " tix ", show transitionIndex]
+#endif
 
   -- Mismatch: at this point there should be no siblings in associated base pool
   let goUnit !tix = \case
         0 -> do
           base' <- dawgBuilderBasePool db !~ tix
-          trace $ concat
-            [ "--areEqual 0 tix ", show tix, " b ", show (base base'), " b.hs ", show (hasSibling base')]
+#ifdef trace
+          traceIO $ concat
+            [ "--areEqual 0 tix ", show tix
+            , " b ", show (base base')
+            , " b.hs ", show (hasSibling base')
+            ]
+#endif
           pure (tix, hasSibling base')
         ix -> do
-          trace $ concat [ "goUnit tix ", show tix, " uix ", show ix]
+#ifdef trace
+          traceIO $ concat [ "goUnit tix ", show tix, " uix ", show ix]
+#endif
           !base' <- dawgBuilderBasePool db !~ tix
           if hasSibling base'
             then do
@@ -495,13 +553,15 @@ areEqual !unitIndex !transitionIndex !DBRef{..} = do
         !unit' <- dawgBuilderUnitPool db !~ uix
         !base' <- dawgBuilderBasePool db !~ tix
         !label' <- dawgBuilderLabelPool db !~ tix
-        trace $ concat
+#ifdef trace
+        traceIO $ concat
           [ "goBack tix ", show tix
           , " uix ", show uix
           , " u ", show unit'
           , " tr ", show (base base')
           ," l ", show (chr $ fromIntegral label'), " (", show label', ")"
           ]
+#endif
         if DawgUnit.base unit' /= base base' || DawgUnit.label unit' /= label'
            then pure (tix, False)
            else goBack (tix - 1) (fromIntegral $ DawgUnit.sibling unit')
@@ -530,20 +590,18 @@ hashTransition !ix DBRef{..} = do
 
 -- | Calculates a hash value from a unit.
 hashUnit
-  :: DawgBuilderM m
+  :: forall m. DawgBuilderM m
   => BaseType -> DAWGBuilder m -> m BaseType
 hashUnit !ix DBRef{..} = do
   db <- readMutVar unDBRef
 
-  let go !hv 0 = pure hv
+  let go :: BaseType -> BaseType -> m BaseType
+      go !hv 0 = pure hv
       go !hv !ix' = do
         !u <- dawgBuilderUnitPool db !~ ix'
-        trace $ concat
-          [ "--hashUnit ix ", show ix'
-          , " hv ", show hv
-          , " u ", show u
-          ]
-          
+#ifdef trace
+        traceIO (concat [ "--hashUnit ix ", show ix', " hv ", show hv, " u ", show u])
+#endif
         let !base' = DawgUnit.base u
             !label' = DawgUnit.label u
             !newHashValue = hv .^. fromIntegral
