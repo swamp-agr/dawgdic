@@ -90,9 +90,11 @@ library
                       Data.DAWG.Internal.GuideBuilder
                       Data.DAWG.Internal.GuideUnit
                       Data.DAWG.Internal.Stack
-                      Data.DAWG.Build
-                      Data.DAWG.Find
-                      Data.DAWG.Test
+                      Data.DAWG.Completer
+                      Data.DAWG.DAWG
+                      Data.DAWG.Dictionary
+                      Data.DAWG.Guide
+
     if flag(trace)
       cpp-options: -Dtrace
       hs-source-dirs: src-trace
@@ -119,12 +121,6 @@ library
 
     -- Base language which the package is written in.
     default-language: GHC2021
-
-executable hdawgt
-    main-is: Main.hs
-    hs-source-dirs: app
-    ghc-options: -Wall -O2
-    build-depends: dawgdic, base       
 
 test-suite spec
     -- Import common warning flags.

@@ -57,21 +57,21 @@ contains !key d =
     Nothing -> False
     Just ix -> hasValue ix d
 
-containsLength :: HasCallStack => [CharType] -> SizeType -> Dictionary -> Bool
-containsLength !k !l d =
-  case followLength k l root d of
+containsPrefixLength :: HasCallStack => [CharType] -> SizeType -> Dictionary -> Bool
+containsPrefixLength !k !l d =
+  case followPrefixLength k l root d of
     Nothing -> False
     Just ix -> hasValue ix d
 
-find :: HasCallStack => [CharType] -> Dictionary -> Maybe ValueType
-find !k d =
+lookup :: HasCallStack => [CharType] -> Dictionary -> Maybe ValueType
+lookup !k d =
   case follow k root d of
     Nothing -> Nothing
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
 
-findLength :: HasCallStack => [CharType] -> SizeType -> Dictionary -> Maybe ValueType
-findLength !k !l d =
-  case followLength k l root d of
+lookupPrefixLength :: HasCallStack => [CharType] -> SizeType -> Dictionary -> Maybe ValueType
+lookupPrefixLength !k !l d =
+  case followPrefixLength k l root d of
     Nothing -> Nothing
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
 
@@ -101,18 +101,9 @@ follow (!c : !cs) !ix d = if c == fromIntegral (ord '\0')
          Nothing -> Nothing
          Just !nextIx -> follow cs nextIx d
 
-followCount
-  :: HasCallStack => [CharType] -> BaseType -> SizeType -> Dictionary -> (SizeType, Maybe BaseType)
-followCount [] !ix !acc _d = (acc, Just ix)
-followCount (!c : !cs) !ix !acc d = if c == fromIntegral (ord '\0')
-  then (acc, Just ix)
-  else case followChar c ix d of
-         Nothing -> (acc, Nothing)
-         Just !nextIx -> followCount cs nextIx (succ acc) d
-
-followLength
+followPrefixLength
   :: HasCallStack => [CharType] -> SizeType -> BaseType -> Dictionary -> Maybe BaseType
-followLength !cs !l !ix d =
+followPrefixLength !cs !l !ix d =
     let follow' !ix' [] = Just ix'
         follow' !ix' (!i : !is) =
 #ifdef trace
@@ -122,21 +113,6 @@ followLength !cs !l !ix d =
                 Nothing -> Nothing
                 Just !nIx -> follow' nIx is
     in follow' ix [0 .. pred l]
-
-followLengthCount
-  :: HasCallStack => [CharType]
-  -> SizeType
-  -> BaseType
-  -> SizeType
-  -> Dictionary
-  -> (SizeType, Maybe BaseType)
-followLengthCount !cs !l !ix !acc d =
-    let follow' !ix' !acc' [] = (acc', Just ix')
-        follow' !ix' !acc' (!i : !is) =
-          case followChar (cs !! fromIntegral i) ix' d of
-            Nothing -> (acc', Nothing)
-            Just !nIx -> follow' nIx (succ acc) is
-    in follow' ix acc [0 .. pred l]
 
 dump :: HasCallStack => Dictionary -> IO ()
 dump d = do

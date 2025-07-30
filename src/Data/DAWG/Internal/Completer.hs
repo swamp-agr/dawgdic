@@ -31,8 +31,8 @@ data Completer = Completer
   , completerLastIndex :: BaseType
   }
 
-newCompleter :: HasCallStack => Dictionary -> Guide -> Completer
-newCompleter dict guide = Completer
+new :: Dictionary -> Guide -> Completer
+new dict guide = Completer
   { completerDictionary = dict
   , completerGuide = guide
   , completerKey = Vector.empty
@@ -40,8 +40,8 @@ newCompleter dict guide = Completer
   , completerLastIndex = 0
   }
 
-startCompleter :: HasCallStack => BaseType -> String -> Completer -> Completer
-startCompleter !ix !prefix !c =
+start :: HasCallStack => BaseType -> String -> Completer -> Completer
+start !ix !prefix !c =
 #ifdef trace
   unsafePerformIO do
     traceIO $ concat [ "-completer:start ix ", show ix, " prefix ", prefix, " l ", show $ length prefix ]
@@ -58,8 +58,8 @@ startCompleter !ix !prefix !c =
            }
       in nc
 
-nextCompleter :: HasCallStack => Completer -> Maybe Completer
-nextCompleter !c =
+next :: HasCallStack => Completer -> Maybe Completer
+next !c =
   let withNonEmptyStack comp action = case completerIndexStack comp of
         EndOfStack -> Nothing
         Elem !ix !_rest -> action ix comp
@@ -104,7 +104,7 @@ nextCompleter !c =
             else go pix nc
 
       followTerminal label' ix' c' =
-        case followCompleter label' ix' c' of
+        case follow label' ix' c' of
           Nothing -> Nothing
           Just (!nextIx, !nextC) -> findTerminal nextIx nextC
 
@@ -120,8 +120,8 @@ nextCompleter !c =
   in withNonEmptyStack c nextByIx
 
 
-followCompleter :: HasCallStack => CharType -> BaseType -> Completer -> Maybe (BaseType, Completer)
-followCompleter !label !ix !c =
+follow :: HasCallStack => CharType -> BaseType -> Completer -> Maybe (BaseType, Completer)
+follow !label !ix !c =
   case Dict.followChar label ix (completerDictionary c) of
     Nothing -> Nothing
     Just !nextIx ->

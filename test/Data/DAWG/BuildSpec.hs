@@ -1,11 +1,11 @@
 {-# LANGUAGE BlockArguments #-}
 module Data.DAWG.BuildSpec where
 
-import qualified Data.DAWG.Internal.DAWGBuilder as DB
-import qualified Data.DAWG.Internal.DictionaryBuilder as DiB
-import qualified Data.DAWG.Internal.Dictionary as Dict
+import qualified Data.DAWG.DAWG as DAWG
+import qualified Data.DAWG.Dictionary as Dict
 
 import Control.Monad (forM_)
+import Data.Maybe (isJust)
 import Test.Hspec
 
 import qualified Data.Vector as Vector
@@ -19,8 +19,8 @@ spec = do
     it "DAWG builds from words, DAWG contains words" do
       let insert' builder (k, ml, result) = do
             res <- case ml of
-              Nothing -> DB.insert (Vector.fromList k) Nothing builder
-              Just l  -> DB.insertWithLength (Vector.fromList k) l 0 builder
+              Nothing -> DAWG.insert (Vector.fromList k) Nothing builder
+              Just l  -> DAWG.insertWithLength (Vector.fromList k) l 0 builder
             res `shouldBe` result
           contains' dict w = Dict.contains w dict `shouldBe` True
           dictDataset = ["apple", "cherry", "durian", "green", "mandarin"]
@@ -34,15 +34,14 @@ spec = do
             , ("mandarin orange", Just 8, True)
             , ("mandarin", Nothing, True)
             ]
-      db <- DB.new
+      db <- DAWG.new
       forM_  dawgDataset \entry -> do
         insert' db entry
-      dawg <- DB.finish db
+      dawg <- DAWG.freeze db
 
-      dib <- DiB.new dawg
-      dibResult <- DiB.build dib
-      dibResult `shouldBe` True
-
-      dict <- DiB.finish dib
-      forM_ dictDataset \entry -> do
-        contains' dict entry
+      mDictB <- Dict.build dawg
+      isJust mDictB `shouldBe` True
+      forM_ mDictB \dictB -> do
+        dict <- Dict.freeze dictB
+        forM_ dictDataset \entry -> do
+          contains' dict entry

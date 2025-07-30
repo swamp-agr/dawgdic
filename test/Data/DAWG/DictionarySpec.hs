@@ -3,13 +3,12 @@ module Data.DAWG.DictionarySpec where
 
 import Data.DAWG.Internal.BaseType
 
-import qualified Data.DAWG.Internal.DAWGBuilder as DB
-import qualified Data.DAWG.Internal.DictionaryBuilder as DiB
-import qualified Data.DAWG.Internal.Dictionary as Dict
+import qualified Data.DAWG.DAWG as DAWG
+import qualified Data.DAWG.Dictionary as Dict
 
 import Control.Monad (forM_, when)
 import Data.Char (ord)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Test.Hspec
 import Text.Read (readMaybe)
 
@@ -22,19 +21,19 @@ spec :: Spec
 spec = do
   describe "Dictionary" do
     it "Builds a dictionary from a lexicon" do
-      db <- DB.new
+      db <- DAWG.new
       contents <- readFile "data/lexicon"
       forM_ (lines contents) \l -> do
         let (w, strVal) = break (== '\t') l
             mVal = readMaybe . drop 1 $ strVal
             value = fromMaybe maxBound mVal :: ValueType
-        DB.insert (Vector.fromList w) (Just value) db
-      dawg <- DB.finish db
-      dib <- DiB.new dawg
-      dibResult <- DiB.build dib
-      dict <- DiB.finish dib
-      Dict.write "lexicon.dic" dict
-      dibResult `shouldBe` True
+        DAWG.insert (Vector.fromList w) (Just value) db
+      dawg <- DAWG.freeze db
+      mDictB <- Dict.build dawg
+      forM_ mDictB \dictBuilder -> do
+        dict <- Dict.freeze dictBuilder
+        Dict.write "lexicon.dic" dict
+      isJust mDictB `shouldBe` True
     
     it "Finds prefix keys from a lexicon" do
       let dictResultFile = "dictionary-result"
