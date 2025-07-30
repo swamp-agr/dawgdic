@@ -42,24 +42,25 @@ type GuideM m =
   -- , MVector ObjectPool GuideUnit, MVector ObjectPool UCharType
   )
 
-newGuideBuilder :: GuideM m => DAWG -> Dictionary -> m (GuideBuilder m)
-newGuideBuilder guideBuilderDawg guideBuilderDictionary = do
+new :: GuideM m => DAWG -> Dictionary -> m (GuideBuilder m)
+new guideBuilderDawg guideBuilderDictionary = do
   guideBuilderUnits <- V.new 0
   guideBuilderIsFixedTable <- V.new 0
   let g = GuideBuilder{..}
   GRef <$> newMutVar g
 
-buildGuide :: GuideM m => GuideBuilder m -> m (Maybe Guide)
-buildGuide gref@GRef{..} = do
+buildGuide :: GuideM m => DAWG -> Dictionary -> m (Maybe Guide)
+buildGuide dawg dict = do
+  gref@GRef{..} <- new dawg dict
   resizeUnitsAndFlagsForGuide gref
 
   gb <- readMutVar getGRef
   if dictionarySize (guideBuilderDictionary gb) == 1
-    then freezeGuideBuilder gb
+    then freeze gb
     else do
       buildGuideFromIndexes Dawg.root Dict.root gb >>= \case
         Nothing -> pure Nothing
-        Just () -> freezeGuideBuilder gb
+        Just () -> freeze gb
 
 resizeUnitsAndFlagsForGuide :: GuideM m => GuideBuilder m -> m ()
 resizeUnitsAndFlagsForGuide GRef{..} = do
@@ -77,17 +78,17 @@ resizeUnitsAndFlagsForGuide GRef{..} = do
 buildGuideFromIndexes :: GuideM m => BaseType -> BaseType -> GuideBuilder_ m -> m (Maybe ())
 buildGuideFromIndexes !dawgIx !dictIx !gb = do
 #ifdef trace
-  ifd <- isFixedGuideBuilder dictIx gb
+  ifd <- isFixed dictIx gb
   traceIO $ concat
     ["buildGuide dawgIx ", show dawgIx
     , " dawgChildIx ", show $ Dawg.child dawgIx (guideBuilderDawg gb)
     , " dictIx ", show dictIx, " is_fixed_dix ", show ifd
     ]
 #endif
-  isFixedGuideBuilder dictIx gb >>= \case
+  isFixed dictIx gb >>= \case
     True -> pure (Just ())
     False -> do
-      setIsFixedGuideBuilder dictIx gb
+      setIsFixed dictIx gb
 
       -- finds the first non-terminal child.
       let !dawg = guideBuilderDawg gb
@@ -144,19 +145,19 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
 
           go dawgChildIx' dictIx
           
-setIsFixedGuideBuilder :: GuideM m => BaseType -> GuideBuilder_ m -> m ()
-setIsFixedGuideBuilder !ix gb = do
-  let setIsFixed !v = v .|. (1 .<<. (fromIntegral ix `mod` 8))
-  guideBuilderIsFixedTable gb !<~~ (fromIntegral ix `div` 8) $! setIsFixed
+setIsFixed :: GuideM m => BaseType -> GuideBuilder_ m -> m ()
+setIsFixed !ix gb = do
+  let setIsFixed' !v = v .|. (1 .<<. (fromIntegral ix `mod` 8))
+  guideBuilderIsFixedTable gb !<~~ (fromIntegral ix `div` 8) $! setIsFixed'
 
-isFixedGuideBuilder :: GuideM m => BaseType -> GuideBuilder_ m -> m Bool
-isFixedGuideBuilder !ix gb = do
+isFixed :: GuideM m => BaseType -> GuideBuilder_ m -> m Bool
+isFixed !ix gb = do
   v <- guideBuilderIsFixedTable gb !~ (fromIntegral ix `div` 8)
   let x = v .&. (1 .<<. (fromIntegral ix `mod` 8))
   pure $ x /= 0
 
-freezeGuideBuilder :: GuideM m => GuideBuilder_ m -> m (Maybe Guide)
-freezeGuideBuilder gb = do
+freeze :: GuideM m => GuideBuilder_ m -> m (Maybe Guide)
+freeze gb = do
   funits <- UV.freeze $ guideBuilderUnits gb  
   let !guideUnits = (Vector.fromList . UV.toList) funits
   let !guideSize = fromIntegral $ Vector.length guideUnits

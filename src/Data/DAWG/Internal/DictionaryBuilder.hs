@@ -127,11 +127,11 @@ new !dawgDictionaryBuilderDawg = do
 build
   :: HasCallStack
   => DictionaryBuilderM m
-  => DictionaryBuilder m -> m Bool
-build dref@DDBRef{..} = do
+  => DAWG -> m (Maybe (DictionaryBuilder m))
+build !dawg = do
+  !dref@DDBRef{..} <- new dawg
   !preDdb <- readMutVar getDDBRef
-  let !dawg = dawgDictionaryBuilderDawg preDdb
-      !ltsize = dawgNumOfMergingStates dawg + (dawgNumOfMergingStates dawg .>>. 1)
+  let !ltsize = dawgNumOfMergingStates dawg + (dawgNumOfMergingStates dawg .>>. 1)
 #ifdef trace
   traceIO ("build ltsize " <> show ltsize)
 #endif
@@ -164,7 +164,7 @@ build dref@DDBRef{..} = do
 #ifdef trace
       traceIO $ "build: offset is not set for " <> show u0
 #endif
-      pure False
+      pure Nothing
     else do
 #ifdef trace
       traceIO ("build set offset unit[0] " <> show u1)
@@ -187,7 +187,7 @@ build dref@DDBRef{..} = do
       traceIO ("build result: " <> show buildResult)
 #endif
       if not buildResult
-        then pure False
+        then pure Nothing
         else do
 #ifdef trace
           traceIO "build fixAllBlocks"
@@ -196,7 +196,7 @@ build dref@DDBRef{..} = do
 #ifdef trace
           traceWith dump dref
 #endif
-          pure True
+          pure $! Just dref
 
 buildFromDawg
   :: HasCallStack
@@ -578,7 +578,8 @@ expandDictionary dref@DDBRef{..} = do
 
 fixAllBlocks
   :: HasCallStack
-  => DictionaryBuilderM m => DictionaryBuilder m -> m ()
+  => DictionaryBuilderM m
+  => DictionaryBuilder m -> m ()
 fixAllBlocks dref@DDBRef{..} = do
 #ifdef trace
   traceIO "-fixAllBlocks"
@@ -659,8 +660,8 @@ unfixedSize = blockSize * numOfUnfixedBlocks
 blockSize :: BaseType
 blockSize = 256
 
-finish :: PrimMonad m => DictionaryBuilder m -> m Dictionary
-finish DDBRef{..} = do
+freeze :: PrimMonad m => DictionaryBuilder m -> m Dictionary
+freeze DDBRef{..} = do
   ddb <- readMutVar getDDBRef
   dictionaryUnits <- VG.unsafeFreeze $! dawgDictionaryBuilderUnits ddb
   let dictionarySize = fromIntegral $! VG.length dictionaryUnits

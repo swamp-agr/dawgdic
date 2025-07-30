@@ -3,14 +3,12 @@ module Data.DAWG.CompleterSpec where
 
 import Data.DAWG.Internal.BaseType
 
-import Data.DAWG.Internal.Completer (Completer(..), keyToString, newCompleter, startCompleter, nextCompleter)
+import Data.DAWG.Completer (Completer(..), keyToString, new, start, next)
 
-import qualified Data.DAWG.Internal.DAWGBuilder as DB
-import qualified Data.DAWG.Internal.DictionaryBuilder as DiB
-import qualified Data.DAWG.Internal.Dictionary as Dict
-import qualified Data.DAWG.Internal.Completer as C
-import qualified Data.DAWG.Internal.Guide as G
-import qualified Data.DAWG.Internal.GuideBuilder as GB
+import qualified Data.DAWG.Completer as C
+import qualified Data.DAWG.Guide as G
+import qualified Data.DAWG.DAWG as DAWG
+import qualified Data.DAWG.Dictionary as Dict
 
 import Control.Monad (forM_)
 import Data.Char (ord)
@@ -27,27 +25,29 @@ spec :: Spec
 spec = do
   describe "Completer" do
     it "Builds a completer from a lexicon" do
-      db <- DB.new
+      db <- DAWG.new
       contents <- readFile "data/lexicon"
       forM_ (lines contents) \l -> do
         let (w, strVal) = break (== '\t') l
             mVal = readMaybe . drop 1 $ strVal
             value = fromMaybe maxBound mVal :: ValueType
-        DB.insert (Vector.fromList w) (Just value) db
-      dawg <- DB.finish db
-      dib <- DiB.new dawg
-      dibResult <- DiB.build dib
-      dict <- DiB.finish dib
-      dibResult `shouldBe` True
+        DAWG.insert (Vector.fromList w) (Just value) db
+      dawg <- DAWG.freeze db
+      mDictB <- Dict.build dawg
+      forM_ mDictB \dictBuilder -> do
+        dict <- Dict.freeze dictBuilder
+        Dict.write "lexicon.dic" dict
+      isJust mDictB `shouldBe` True
 
-      mGuide <- GB.buildGuide =<< GB.newGuideBuilder dawg dict
+      dict <- Dict.read "lexicon.dic"
+      mGuide <- G.buildGuide dawg dict
       isJust mGuide `shouldBe` True
       forM_ mGuide \guide -> G.write "lexicon.gde" guide
     
     it "Completes keys from a lexicon" do
       writeFile "completer-debug.txt" ""
       let completerResultFile = "completer-result"
-          goNext w c = case nextCompleter c of
+          goNext w c = case next c of
             Nothing -> pure ()
             Just !nc -> do
               appendFile "completer-debug.txt" $ concat
@@ -59,13 +59,13 @@ spec = do
           go :: BaseType -> String -> String -> Dict.Dictionary -> G.Guide -> IO ()
           go _dictIx _fullWord [] _dict _guide = pure ()
           go dictIx fw w d g = do
-            let c = newCompleter d g
+            let c = new d g
             appendFile "completer-debug.txt" $ w <> "\n"
-            case Dict.followLength ((fromIntegral . ord) <$> w) (fromIntegral $ length w) dictIx d of
+            case Dict.followPrefixLength ((fromIntegral . ord) <$> w) (fromIntegral $ length w) dictIx d of
               Nothing -> pure ()
               Just nextDictIx -> do
                 appendFile "completer-debug" $ "ix " <> show nextDictIx <> "n"
-                let !nc = startCompleter nextDictIx "" c
+                let !nc = start nextDictIx "" c
                 goNext fw nc
                 go nextDictIx fw w d g
 

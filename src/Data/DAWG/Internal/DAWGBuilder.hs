@@ -207,30 +207,30 @@ insertKey ks l v dbref@DBRef{..} = do
 
       pure True
 
-finish
+freeze
   :: HasCallStack
   => DawgBuilderM m => DAWGBuilder m -> m DAWG
-finish dbref@DBRef{..} = do
+freeze dbref@DBRef{..} = do
   do
     db0 <- readMutVar unDBRef
     htsize <- HT.size $ dawgBuilderHashTable db0
     when (htsize == 0) $ init dbref
 #ifdef trace
-    traceIO "finish"
+    traceIO "freeze"
 #endif
     fixUnits 0 dbref
 
   db <- readMutVar unDBRef
   unit0 <- dawgBuilderUnitPool db !~ 0
 #ifdef trace
-  traceIO $ "finish: u0 " <> show unit0
+  traceIO $ "freeze: u0 " <> show unit0
 #endif
   dawgBuilderBasePool db <~~ 0 $ BaseUnit $ DawgUnit.base unit0
   dawgBuilderLabelPool db <~~ 0 $ DawgUnit.label unit0
 
 #ifdef trace
   b0 <- dawgBuilderBasePool db !~ 0
-  traceIO $ "finish: b0 " <> show b0
+  traceIO $ "freeze: b0 " <> show b0
 #endif
 
   fbasePool <- VG.unsafeFreeze $ dawgBuilderBasePool db
