@@ -4,6 +4,7 @@ module Data.DAWG.DAWG
   , insert
   , insertWithLength
   , freeze
+  , fromAscList
   , root
   , empty
   , child
@@ -15,5 +16,5 @@ module Data.DAWG.DAWG
   , size
   ) where
 
-import Data.DAWG.Internal.DAWGBuilder (new, insert, insertWithLength, freeze)
+import Data.DAWG.Internal.DAWGBuilder (new, insert, insertWithLength, freeze, fromAscList)
 import Data.DAWG.Internal.DAWG

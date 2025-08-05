@@ -5,6 +5,7 @@ module Data.DAWG.Completer
   , next
   , keyToString
   , value
+  , completeKeys
   ) where
 
 import Data.DAWG.Internal.Completer

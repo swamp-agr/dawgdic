@@ -1,5 +1,6 @@
 module Data.DAWG.Internal.Guide where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (forM_)
 import Data.Binary
 import Data.Vector (Vector)
@@ -20,7 +21,7 @@ import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 data Guide = Guide
   { guideUnits :: Vector GuideUnit
   , guideSize :: SizeType
-  } deriving (Generic, Binary)
+  } deriving (Generic, Binary, NFData)
 
 empty :: Guide
 empty = Guide

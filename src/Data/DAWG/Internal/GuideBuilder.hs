@@ -5,6 +5,7 @@ import Control.Monad (when)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Data.Bits
 import Data.Primitive.MutVar
+import GHC.Stack (HasCallStack)
 
 import Data.Primitive.PrimArray.Combinators
 import Data.DAWG.Internal.BaseType
@@ -49,8 +50,8 @@ new guideBuilderDawg guideBuilderDictionary = do
   let g = GuideBuilder{..}
   GRef <$> newMutVar g
 
-buildGuide :: GuideM m => DAWG -> Dictionary -> m (Maybe Guide)
-buildGuide dawg dict = do
+build :: HasCallStack => GuideM m => DAWG -> Dictionary -> m (Maybe Guide)
+build dawg dict = do
   gref@GRef{..} <- new dawg dict
   resizeUnitsAndFlagsForGuide gref
 
@@ -61,6 +62,11 @@ buildGuide dawg dict = do
       buildGuideFromIndexes Dawg.root Dict.root gb >>= \case
         Nothing -> pure Nothing
         Just () -> freeze gb
+
+build' :: HasCallStack => GuideM m => DAWG -> Dictionary -> m Guide
+build' dawg dict = build dawg dict >>= \case
+  Just guide -> pure guide
+  Nothing -> error "failed to build guide"
 
 resizeUnitsAndFlagsForGuide :: GuideM m => GuideBuilder m -> m ()
 resizeUnitsAndFlagsForGuide GRef{..} = do

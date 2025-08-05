@@ -178,3 +178,21 @@ dump prefix Completer{..} = do
         , "lastIx " <> show completerLastIndex
         ]
   putStrLn msg
+
+completeKeys :: String -> Dictionary -> Guide -> [String]
+completeKeys prefix dict guide = 
+  let !c = new dict guide
+      goDict acc !dictIx = 
+        let !l = fromIntegral $ length prefix
+        in case Dict.followPrefixLength prefix l dictIx dict of
+          Nothing -> acc
+          Just nextDictIx ->
+            let !nc = start nextDictIx "" c
+                !nacc = goNext acc nc
+            in goDict nacc nextDictIx
+      goNext acc comp = case next comp of
+        Nothing -> acc
+        Just !nc ->
+          let !nextWord = concat [prefix, keyToString $ completerKey nc]
+          in goNext (nextWord : acc) nc
+  in reverse $ goDict [] Dict.root

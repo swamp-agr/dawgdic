@@ -32,6 +32,18 @@ Add `dawgdic` dependency to your project and run `cabal build`.
 
 ## Benchmarks
 
+```
+Benchmark                           default(μs)
+----------------------------------- -----------
+Utilities/10/Dawg.fromAscList          22218.73
+Utilities/10/Dict.build'               23332.68
+Utilities/10/Dict.contains                26.00
+Utilities/10/Dict.lookup                  26.53
+Utilities/10/Dict.follow                  25.32
+Utilities/10/Guide.build'                558.97
+Utilities/10/Completer.completeKeys      433.50
+```
+
 ## Contributing
 
 In cases of issues please attach callstack, provide minimal dictionary lexicon and provide logs with enabled tracing.
@@ -41,3 +53,5 @@ cabal build -ftrace
 ```
 
 ## Acknowledgments
+
+- [Susumu Yata](https://github.com/s-yata) as original author of C++ library.

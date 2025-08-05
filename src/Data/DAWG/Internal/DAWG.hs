@@ -1,9 +1,11 @@
 module Data.DAWG.Internal.DAWG where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (forM_)
 import Data.Bit (Bit (..))
 import Data.Char
 import Data.Maybe (fromMaybe)
+import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 
 import Data.DAWG.Internal.BaseType
@@ -25,14 +27,20 @@ data DAWG = DAWG
   , dawgNumOfMergedStates :: SizeType
   , dawgNumOfMergingStates :: SizeType
   }
+  deriving (Generic, NFData)
+
 
 newtype BasePool = BasePool { unBasePool :: UV.Vector BaseUnit }
+  deriving newtype NFData
 
 newtype LabelPool = LabelPool { unLabelPool :: UV.Vector UCharType }
+  deriving newtype NFData
 
 newtype FlagPool = FlagPool { unFlagPool :: BitPool }
+  deriving newtype NFData
 
 newtype BitPool = BitPool { unBitPool :: UV.Vector Bit }
+  deriving newtype NFData
 
 root :: BaseType
 root = 0

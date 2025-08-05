@@ -11,7 +11,6 @@ import qualified Data.DAWG.DAWG as DAWG
 import qualified Data.DAWG.Dictionary as Dict
 
 import Control.Monad (forM_)
-import Data.Char (ord)
 import Data.Maybe (fromMaybe, isJust)
 import Test.Hspec
 import Text.Read (readMaybe)
@@ -40,7 +39,7 @@ spec = do
       isJust mDictB `shouldBe` True
 
       dict <- Dict.read "lexicon.dic"
-      mGuide <- G.buildGuide dawg dict
+      mGuide <- G.build dawg dict
       isJust mGuide `shouldBe` True
       forM_ mGuide \guide -> G.write "lexicon.gde" guide
     
@@ -61,7 +60,7 @@ spec = do
           go dictIx fw w d g = do
             let c = new d g
             appendFile "completer-debug.txt" $ w <> "\n"
-            case Dict.followPrefixLength ((fromIntegral . ord) <$> w) (fromIntegral $ length w) dictIx d of
+            case Dict.followPrefixLength w (fromIntegral $ length w) dictIx d of
               Nothing -> pure ()
               Just nextDictIx -> do
                 appendFile "completer-debug" $ "ix " <> show nextDictIx <> "n"
