@@ -361,7 +361,6 @@ fixUnits !index dbref@DBRef{..} = do
 
               numOfStates' <- dawgBuilderRefs db ! numOfStates
               htsize <- HT.size $ dawgBuilderHashTable db
-              -- FIXME: revisit this condition
               when (numOfStates' >= htsize - (htsize .>>. 1)) do
                 expandHashTable dbref
 

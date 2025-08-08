@@ -78,6 +78,6 @@ utilities n = do
 
 main :: IO ()
 main = do
-  let inputs = [10] --, 100 {- infinite loop -}, 1000, 10000]
+  let inputs = [10, 100, 1000, 10000]
   utilitiesBench <- mapM utilities inputs
   defaultMain [ bgroup "Utilities" utilitiesBench ]

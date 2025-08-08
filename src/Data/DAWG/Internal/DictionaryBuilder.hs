@@ -69,12 +69,33 @@ newLabels :: PrimMonad m => m (UUHT m SizeType UCharType)
 newLabels = HT.initialize 0
 
 lookupBlock
-  :: PrimMonad m
+  :: (HasCallStack, PrimMonad m)
   => DictionaryBuilder_ m -> BaseType -> m (UUHT m BaseType DictionaryExtraUnit)
 lookupBlock ddb ix =
   HT.lookup (dawgDictionaryBuilderExtras ddb) (ix `div` blockSize) >>= \case
-    Nothing -> HT.initialize 0
+    Nothing -> error "Missing block"
     Just block -> pure block
+
+insertBlock
+  :: PrimMonad m
+  => DictionaryBuilder_ m -> UUHT m BaseType DictionaryExtraUnit -> BaseType -> m ()
+insertBlock ddb block ix =
+  HT.insert (dawgDictionaryBuilderExtras ddb) (ix `div` blockSize) block
+
+swapBlocks
+  :: (HasCallStack, PrimMonad m)
+  => DictionaryBuilder_ m -> BaseType -> BaseType -> m ()
+swapBlocks ddb b1 b2 = do
+  let getBlock blockId =
+        HT.lookup (dawgDictionaryBuilderExtras ddb) blockId >>= \case
+          Nothing -> error "Missing block"
+          Just block -> pure block
+
+  block1 <- getBlock b1
+  block2 <- getBlock b2
+
+  HT.insert (dawgDictionaryBuilderExtras ddb) b1 block2
+  HT.insert (dawgDictionaryBuilderExtras ddb) b2 block1
 
 extras
   :: forall m. HasCallStack
@@ -84,14 +105,6 @@ extras !ddb !ix = do
   !block <- lookupBlock ddb ix
   fromMaybe Extra.empty <$> HT.lookup block (ix `mod` blockSize)
 
-setExtras
-  :: HasCallStack
-  => DictionaryBuilderM m
-  => DictionaryBuilder_ m -> BaseType -> DictionaryExtraUnit -> m ()
-setExtras !ddb !ix !new' = do
-  !block <- lookupBlock ddb ix
-  HT.insert block (ix `mod` blockSize) new'
-
 modifyExtras
   :: HasCallStack
   => DictionaryBuilderM m
@@ -99,7 +112,9 @@ modifyExtras
   -> BaseType -> (DictionaryExtraUnit -> DictionaryExtraUnit) -> m ()
 modifyExtras !ddb !ix modifier = do
   !block <- lookupBlock ddb ix
-  HT.alter block (fmap modifier) (ix `mod` blockSize)
+  let f Nothing = Just $! modifier Extra.empty
+      f (Just !x) = Just $! modifier x
+  HT.alter block f (ix `mod` blockSize)
 
 allocateExtras
   :: HasCallStack
@@ -107,11 +122,11 @@ allocateExtras
   => DictionaryBuilder_ m -> BaseType -> m ()
 allocateExtras !ddb destSize = do
   srcSize <- numOfBlocks ddb
-  block <- HT.initialize 0
-  forM_ [ 0 .. blockSize - 1 ] \ix -> do
-    HT.insert block ix Extra.empty
   when (srcSize < destSize) do
     forM_ [srcSize .. pred destSize] \ix -> do
+      block <- HT.initialize 0
+      forM_ [0 .. pred blockSize] \bix -> do
+        HT.insert block bix Extra.empty
       HT.insert (dawgDictionaryBuilderExtras ddb) ix block
 
 new :: HasCallStack => DictionaryBuilderM m => DAWG -> m (DictionaryBuilder m)
@@ -249,18 +264,14 @@ buildFromDawg dawgIx dictIx dref@DDBRef{..} = do
                 when (Dawg.isLeaf ix dawg) do
                   dawgDictionaryBuilderUnits ddb !<~~ dictIx $! DictUnit.setHasLeaf
                 !u <- dawgDictionaryBuilderUnits ddb !~ dictIx
-                let (!isSet, !nu) = DictUnit.setOffset renewedOffset u
-                if isSet
-                  then do
-                    dawgDictionaryBuilderUnits ddb <~~ dictIx $ nu
-                    pure (Just True)
-                  else pure (Just False)
+                let (!_isSet, !nu) = DictUnit.setOffset renewedOffset u
+                dawgDictionaryBuilderUnits ddb <~~ dictIx $ nu
+                pure $! Just True
               else pure Nothing
 
-      result <- whenMerging dawgChildIx (withOffset dawgChildIx withRenewedOffset)
-      if result == Just True
-        then pure True
-        else do
+      whenMerging dawgChildIx (withOffset dawgChildIx withRenewedOffset) >>= \case
+        Just x -> pure x
+        Nothing -> do
           offset <- arrangeChildNodes dawgIx dictIx dref
           if offset == 0
             then pure False
@@ -418,8 +429,7 @@ isGoodOffset ix offset ddb = do
   !extra' <- extras ddb offset
   if Extra.isUsed extra' then pure False else do
     let !relativeOffset = ix .^. offset
-    if (relativeOffset .&. lowerMask /= 0)
-      && (relativeOffset .&. upperMask /= 0)
+    if (relativeOffset .&. lowerMask /= 0) && (relativeOffset .&. upperMask /= 0)
       then pure False else do
         lsize <- HT.size (dawgDictionaryBuilderLabels ddb)
         let findCollision !i
@@ -430,7 +440,7 @@ isGoodOffset ix offset ddb = do
                   if Extra.isFixed ex'
                     then pure False
                     else findCollision (succ i)
-        findCollision 1              
+        findCollision 1
 
 reserveUnit
   :: HasCallStack
@@ -471,10 +481,13 @@ reserveUnit ix dref = do
 clearBlock
   :: HasCallStack => DictionaryBuilderM m => BaseType -> DictionaryBuilder_ m -> m ()
 clearBlock !blockId ddb = do
-  emptyBlock <- HT.initialize 0
-  forM_ [0 .. pred blockSize] \ix -> do
-    HT.insert emptyBlock ix Extra.empty
-  HT.insert (dawgDictionaryBuilderExtras ddb) blockId emptyBlock
+  block <- HT.lookup (dawgDictionaryBuilderExtras ddb) blockId >>= \case
+    Nothing -> error "Missing block"
+    Just block -> pure block
+  bsize <- HT.size block
+  when (bsize > 0) do
+    forM_ [0 .. pred bsize] \ix -> do
+      HT.insert block (fromIntegral ix `mod` blockSize) Extra.empty
 {-# INLINE clearBlock #-}
 
 expandDictionary :: HasCallStack => DictionaryBuilderM m => DictionaryBuilder m -> m ()
@@ -507,7 +520,11 @@ expandDictionary dref@DDBRef{..} = do
       newUnits <~~ ix $ 0
 
     allocateExtras ddb destNumOfBlocks
-    let !ddb' = ddb { dawgDictionaryBuilderUnits = newUnits }
+    let extras' = dawgDictionaryBuilderExtras ddb
+        !ddb' = ddb
+          { dawgDictionaryBuilderUnits = newUnits
+          , dawgDictionaryBuilderExtras = extras'
+          }
 
     writeMutVar getDDBRef ddb'
     pure (srcNumOfUnits, srcNumOfBlocks, destNumOfUnits, destNumOfBlocks)
@@ -520,25 +537,21 @@ expandDictionary dref@DDBRef{..} = do
       let !blockId = srcNumOfBlocks - numOfUnfixedBlocks
           !lastId = numOfBlocks' - 1
 
-          clear !startId !endId =
-            forM_ [startId .. pred endId] \i -> do
-              clearBlock i ddb1
+      swapBlocks ddb1 blockId lastId
+      forM_ [srcNumOfUnits .. pred destNumOfUnits] \i -> do
+        modifyExtras ddb1 i $! const Extra.empty
 
-      oldBlock <- lookupBlock ddb1 blockId
-      lastBlock <- lookupBlock ddb1 lastId
-      -- swap old block by pushing it to the back
-      HT.insert (dawgDictionaryBuilderExtras ddb1) lastId oldBlock
-      HT.insert (dawgDictionaryBuilderExtras ddb1) blockId lastBlock
-
-      clear srcNumOfUnits destNumOfUnits
     else do
       numOfBlocks' <- numOfBlocks ddb1
       let !lastId = numOfBlocks' - 1
       clearBlock lastId ddb1
 
 #ifdef trace
-  extrasSize <- HT.size (dawgDictionaryBuilderExtras ddb1)
-  traceIO ("--expandDictionary units new size " <> show (V.length (dawgDictionaryBuilderUnits ddb1)) <> " blocks new size " <> show extrasSize)
+  extrasSize <- numOfBlocks ddb1
+  traceIO $ concat
+    [ "--expandDictionary units new size "
+    , show (V.length (dawgDictionaryBuilderUnits ddb1))
+    , " blocks new size ", show extrasSize]
 
 #endif
   -- create a circular linked list for a new block
@@ -670,7 +683,7 @@ dump DDBRef{..} = do
   !bs <- fromIntegral <$> numOfBlocks ddb
   !ls <- HT.size $ dawgDictionaryBuilderLabels ddb
   let !us = V.length $ dawgDictionaryBuilderUnits ddb
-      !ms = maximum [us, bs, ls]
+      !ms = maximum [us, bs * fromIntegral blockSize, ls]
       labelToString x = concat [ show $ chr $ fromIntegral x, " (", show x, ")" ]
 
   putStrLn $ concat [ "i\tu(", show us, ")\t\tb(", show bs, ")\t\t\tl(", show ls, ")"]
