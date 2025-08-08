@@ -13,6 +13,7 @@ import qualified Data.DAWG.Completer as C
 
 -- ** Dataset preparation
 
+-- | Helper function to generate @lexicon.<N>.txt@. Use 'generateAll' instead. It will take a minute to generate input for benchmarks.
 generateN :: FilePath -> Int -> IO ()
 generateN fullLexiconPath n = do
   let outputLexiconFile = concat ["lexicon.", show n, ".txt"]
@@ -30,13 +31,19 @@ generateN fullLexiconPath n = do
   words' <- lines <$> readFile fullLexiconPath
   go (sort words') alphabet
 
+-- | @fullLexiconPath@ should nbe the relative or absolute local path to the file @words_alpha.txt@
+-- from <https://github.com/dwyl/english-words/tree/master>.
+-- Consider downloading and unpacking @words_alpha.zip@.
 generateAll fullLexiconPath = mapM_ (generateN fullLexiconPath) [10, 100, 1000, 10000]
 
 -- ** Utilities
 
+-- | Benchmark inputs were produced via 'generateAll' function.
+--
+-- Revision: @20f5cc9@.
 readLexicon :: Int -> IO [String]
 readLexicon n = do
-  let !lexiconFile = concat ["lexicon.", show n, ".txt"]
+  let !lexiconFile = concat ["data/lexicon.", show n, ".txt"]
   lines <$> readFile lexiconFile
 
 dawgFromAscListBench lexicon = do
