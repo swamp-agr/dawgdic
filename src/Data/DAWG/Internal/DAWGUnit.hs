@@ -35,6 +35,8 @@ instance Show DAWGUnit where
       ]
     where
       showBool x = if x then "1" else "0"
+      {-# INLINE showBool #-}
+  {-# INLINE show #-}
 
 newtype instance UV.MVector s DAWGUnit = MV_DAWGUnit (UV.MVector s (BaseType, BaseType, UCharType, Bool, Bool))
 newtype instance UV.Vector DAWGUnit = V_DAWGUnit (UV.Vector (BaseType, BaseType, UCharType, Bool, Bool))
@@ -45,9 +47,11 @@ deriving newtype instance Unbox DAWGUnit
 
 empty :: DAWGUnit
 empty = DAWGUnit (0, 0, 0, False, False)
+{-# INLINE empty #-}
 
 value :: DAWGUnit -> ValueType
 value = fromIntegral . child
+{-# INLINE value #-}
 
 -- | Calculates a base value of a unit.
 base :: DAWGUnit -> BaseType
@@ -57,33 +61,44 @@ base u =
     else (child u .<<. 2)
        .|. (if isState u then 2 else 0)
        .|. (if hasSibling u then 1 else 0)
+{-# INLINE base #-}
 
 child :: DAWGUnit -> BaseType
 child (DAWGUnit (!c, !_, !_, !_, !_)) = c
+{-# INLINE child #-}
 
 sibling :: DAWGUnit -> BaseType
 sibling (DAWGUnit (!_, !s, !_, !_, !_)) = s
+{-# INLINE sibling #-}
 
 label :: DAWGUnit -> UCharType
 label (DAWGUnit (!_, !_, !l, !_, !_)) = l
+{-# INLINE label #-}
 
 isState :: DAWGUnit -> Bool
 isState (DAWGUnit (!_, !_, !_, !is, !_)) = is
+{-# INLINE isState #-}
 
 hasSibling :: DAWGUnit -> Bool
 hasSibling (DAWGUnit (!_, !_, !_, !_, !hs)) = hs
+{-# INLINE hasSibling #-}
 
 setChild :: DAWGUnit -> BaseType -> DAWGUnit
 setChild (DAWGUnit (!_, !s, !l, !is, !hs)) !c = DAWGUnit (c, s, l, is, hs)
+{-# INLINE setChild #-}
 
 setSibling :: DAWGUnit -> BaseType -> DAWGUnit
 setSibling (DAWGUnit (!c, !_, !l, !is, !hs)) !s = DAWGUnit (c, s, l, is, hs)
+{-# INLINE setSibling #-}
 
 setLabel :: DAWGUnit -> UCharType -> DAWGUnit
 setLabel (DAWGUnit (!c, !s, !_, !is, !hs)) !l = DAWGUnit (c, s, l, is, hs)
+{-# INLINE setLabel #-}
 
 setIsState :: DAWGUnit -> Bool -> DAWGUnit
 setIsState (DAWGUnit (!c, !s, !l, !_, !hs)) !is = DAWGUnit (c, s, l, is, hs)
+{-# INLINE setIsState #-}
 
 setHasSibling :: DAWGUnit -> Bool -> DAWGUnit
 setHasSibling (DAWGUnit (!c, !s, !l, !is, !_)) !hs = DAWGUnit (c, s, l, is, hs)
+{-# INLINE setHasSibling #-}

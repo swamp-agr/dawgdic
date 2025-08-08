@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.Dictionary where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (forM_)
 import Data.Binary
 import Data.Bits
@@ -26,24 +27,29 @@ import Data.DAWG.Trace
 data Dictionary = Dictionary
   { dictionaryUnits :: UV.Vector DictionaryUnit
   , dictionarySize :: SizeType
-  } deriving (Generic, Binary)
+  } deriving (Generic, Binary, NFData)
 
 totalSize :: Dictionary -> SizeType
 totalSize d = DictionaryUnit.size * dictionarySize d 
+{-# INLINE totalSize #-}
 
 fileSize :: Dictionary -> SizeType
 fileSize d = baseTypeSize + totalSize d
+{-# INLINE fileSize #-}
 
 root :: BaseType
 root = 0
+{-# INLINE root #-}
 
 hasValue :: HasCallStack => BaseType -> Dictionary -> Bool
 hasValue !ix d = DictionaryUnit.hasLeaf (dictionaryUnits d UV.! fromIntegral ix)
+{-# INLINE hasValue #-}
 
 value :: HasCallStack => BaseType -> Dictionary -> ValueType
 value !ix d = DictionaryUnit.value (dictionaryUnits d UV.! fromIntegral oix)
   where
     !oix = ix .^. DictionaryUnit.offset (dictionaryUnits d UV.! fromIntegral ix)
+{-# INLINE value #-}
 
 read :: HasCallStack => FilePath -> IO Dictionary
 read = Binary.decodeFile
@@ -53,27 +59,31 @@ write = Binary.encodeFile
 
 contains :: HasCallStack => String -> Dictionary -> Bool
 contains !key d =
-  case follow ((fromIntegral . ord) <$> key) root d of
+  case follow key root d of
     Nothing -> False
     Just ix -> hasValue ix d
+{-# INLINE contains #-}
 
-containsPrefixLength :: HasCallStack => [CharType] -> SizeType -> Dictionary -> Bool
+containsPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Bool
 containsPrefixLength !k !l d =
   case followPrefixLength k l root d of
     Nothing -> False
     Just ix -> hasValue ix d
+{-# INLINE containsPrefixLength #-}
 
-lookup :: HasCallStack => [CharType] -> Dictionary -> Maybe ValueType
+lookup :: HasCallStack => String -> Dictionary -> Maybe ValueType
 lookup !k d =
   case follow k root d of
     Nothing -> Nothing
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
+{-# INLINE lookup #-}
 
-lookupPrefixLength :: HasCallStack => [CharType] -> SizeType -> Dictionary -> Maybe ValueType
+lookupPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Maybe ValueType
 lookupPrefixLength !k !l d =
   case followPrefixLength k l root d of
     Nothing -> Nothing
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
+{-# INLINE lookupPrefixLength #-}
 
 followChar :: HasCallStack => CharType -> BaseType -> Dictionary -> Maybe BaseType
 followChar !l !ix d =
@@ -92,27 +102,30 @@ followChar !l !ix d =
       tracePure debugStr $
 #endif
         if DictionaryUnit.label nu /= fromIntegral l then Nothing else Just nextIx
+{-# INLINE followChar #-}
 
-follow :: HasCallStack => [CharType] -> BaseType -> Dictionary -> Maybe BaseType
+follow :: HasCallStack => String -> BaseType -> Dictionary -> Maybe BaseType
 follow [] !ix _d = Just ix
-follow (!c : !cs) !ix d = if c == fromIntegral (ord '\0')
+follow (!c : !cs) !ix d = if ord c == fromIntegral (ord '\0')
   then Just ix
-  else case followChar c ix d of
+  else case followChar (fromIntegral . ord $ c) ix d of
          Nothing -> Nothing
          Just !nextIx -> follow cs nextIx d
+{-# INLINE follow #-}
 
 followPrefixLength
-  :: HasCallStack => [CharType] -> SizeType -> BaseType -> Dictionary -> Maybe BaseType
+  :: HasCallStack => String -> SizeType -> BaseType -> Dictionary -> Maybe BaseType
 followPrefixLength !cs !l !ix d =
     let follow' !ix' [] = Just ix'
         follow' !ix' (!i : !is) =
 #ifdef trace
           tracePure (concat ["-followLength ix ", show i, " l ", show l]) $!
 #endif
-              case followChar (cs !! fromIntegral i) ix' d of
+              case followChar (fromIntegral $ ord (cs !! fromIntegral i)) ix' d of
                 Nothing -> Nothing
                 Just !nIx -> follow' nIx is
     in follow' ix [0 .. pred l]
+{-# INLINE followPrefixLength #-}
 
 dump :: HasCallStack => Dictionary -> IO ()
 dump d = do

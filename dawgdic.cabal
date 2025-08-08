@@ -89,6 +89,7 @@ library
                       Data.DAWG.Internal.Guide
                       Data.DAWG.Internal.GuideBuilder
                       Data.DAWG.Internal.GuideUnit
+                      Data.DAWG.Internal.LinkTable
                       Data.DAWG.Internal.Stack
                       Data.DAWG.Completer
                       Data.DAWG.DAWG
@@ -110,6 +111,7 @@ library
     build-depends:    base  >= 4.17.2.1 && < 4.25.0.0
                     , binary
                     , bitvec
+                    , deepseq
                     , hashable
                     , primitive
                     , vector
@@ -121,6 +123,17 @@ library
 
     -- Base language which the package is written in.
     default-language: GHC2021
+
+benchmark dawgdic-bench
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      bench
+  import:              warnings
+  main-is:             Main.hs
+  ghc-options:         -O2 -rtsopts
+  build-depends:       base
+                     , criterion
+                     , dawgdic
+  default-language:    Haskell2010
 
 test-suite spec
     -- Import common warning flags.

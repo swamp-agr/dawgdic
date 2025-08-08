@@ -38,30 +38,32 @@ deriving newtype instance Unbox BaseUnit
 instance Hashable BaseUnit where
   -- 32-bit mix function
   -- http://www.concentric.net/~Ttwang/tech/inthash.htm
-  hash (BaseUnit !u) =
-    let !k0 = (complement u) + (u .<<. 15)
-        !k1 = k0 .^. (k0 .>>. 12)
-        !k2 = k1 + (k1 .<<. 2)
-        !k3 = k2 .^. (k2 .>>. 4)
-        !k4 = k3 * 2057 -- k4 = k3 + (k3 .<<. 3) + (k3 .<<. 11)
-        !k5 = k4 .^. (k4 .>>. 16)
-    in fromIntegral k5
+  hash (BaseUnit !u) = hashBaseType u
+  {-# INLINE hash #-}
+
   hashWithSalt s u = hash s .^. hash u
+  {-# INLINE hashWithSalt #-}
 
 empty :: BaseUnit
 empty = BaseUnit 0
+{-# INLINE empty #-}
 
 base :: BaseUnit -> BaseType
 base = unBaseUnit
+{-# INLINE base #-}
 
 child :: BaseUnit -> BaseType
 child u = base u .>>. 2
+{-# INLINE child #-}
 
 hasSibling :: BaseUnit -> Bool
 hasSibling u = (base u .&. 1) /= 0
+{-# INLINE hasSibling #-}
 
 value :: BaseUnit -> ValueType
 value u = fromIntegral $! base u .>>. 1
+{-# INLINE value #-}
 
 isState :: BaseUnit -> Bool
 isState !u = (base u .&. 2) /= 0
+{-# INLINE isState #-}

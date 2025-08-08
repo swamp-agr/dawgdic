@@ -1,9 +1,11 @@
 module Data.DAWG.Internal.DAWG where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (forM_)
 import Data.Bit (Bit (..))
 import Data.Char
 import Data.Maybe (fromMaybe)
+import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 
 import Data.DAWG.Internal.BaseType
@@ -25,17 +27,24 @@ data DAWG = DAWG
   , dawgNumOfMergedStates :: SizeType
   , dawgNumOfMergingStates :: SizeType
   }
+  deriving (Generic, NFData)
+
 
 newtype BasePool = BasePool { unBasePool :: UV.Vector BaseUnit }
+  deriving newtype NFData
 
 newtype LabelPool = LabelPool { unLabelPool :: UV.Vector UCharType }
+  deriving newtype NFData
 
 newtype FlagPool = FlagPool { unFlagPool :: BitPool }
+  deriving newtype NFData
 
 newtype BitPool = BitPool { unBitPool :: UV.Vector Bit }
+  deriving newtype NFData
 
 root :: BaseType
 root = 0
+{-# INLINE root #-}
 
 empty :: DAWG
 empty = DAWG
@@ -47,30 +56,38 @@ empty = DAWG
   , dawgNumOfMergedStates = 0
   , dawgNumOfMergingStates = 0
   }
+{-# INLINE empty #-}
 
 child :: HasCallStack => BaseType -> DAWG -> BaseType
 child !ix = BU.child . (UV.! fromIntegral ix) . unBasePool . dawgBasePool
+{-# INLINE child #-}
 
 sibling :: HasCallStack => BaseType -> DAWG -> BaseType
 sibling !ix !dawg =
   let hasSibling' = BU.hasSibling . (UV.! fromIntegral ix) . unBasePool . dawgBasePool
       itHasSibling = hasSibling' dawg
   in if itHasSibling then ix + 1 else root
+{-# INLINE sibling #-}
 
 value :: HasCallStack => BaseType -> DAWG -> ValueType
 value !ix = BU.value . (UV.! fromIntegral ix) . unBasePool . dawgBasePool
+{-# INLINE value #-}
 
 isLeaf :: HasCallStack => BaseType -> DAWG -> Bool
 isLeaf !ix = (== '\0') . chr . fromIntegral . label ix
+{-# INLINE isLeaf #-}
 
 label :: HasCallStack => BaseType -> DAWG -> UCharType
 label !ix = (UV.! fromIntegral ix) . unLabelPool . dawgLabelPool
+{-# INLINE label #-}
 
 isMerging :: HasCallStack => BaseType -> DAWG -> Bool
 isMerging !ix = unBit . (UV.! fromIntegral ix) . unBitPool . unFlagPool . dawgFlagPool
+{-# INLINE isMerging #-}
 
 size :: DAWG -> SizeType
 size = fromIntegral . UV.length . unBasePool . dawgBasePool
+{-# INLINE size #-}
 
 dump :: DAWG -> IO ()
 dump DAWG{..} = do

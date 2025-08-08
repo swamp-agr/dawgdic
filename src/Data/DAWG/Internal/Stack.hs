@@ -22,22 +22,27 @@ push v ref =
         EndOfStack -> Elem v EndOfStack
         Elem !prev !st -> Elem v (Elem prev st)
   in modifyMutVar' (unStackRef ref) go
+{-# INLINE push #-}
 
 top_ :: Stack_ a -> Maybe a
 top_ = \case
   EndOfStack -> Nothing
   Elem !el !_st -> Just el
+{-# INLINE top_ #-}
 
 top :: forall a m. PrimMonad m => Stack (PrimState m) a -> m (Maybe a)
 top ref = readMutVar (unStackRef ref) >>= pure . top_
+{-# INLINE top #-}
 
 pop :: forall a m. PrimMonad m => Stack (PrimState m) a -> m ()
 pop ref = readMutVar (unStackRef ref) >>= \case
   EndOfStack -> pure ()
   Elem !_el !st -> writeMutVar (unStackRef ref) st
+{-# INLINE pop #-}
 
 size :: forall a. Stack_ a -> Int
 size EndOfStack = 0
 size (Elem !_a rest) =
   let !prevStackSize = size rest
-  in 1 + prevStackSize
+  in succ prevStackSize
+{-# INLINE size #-}

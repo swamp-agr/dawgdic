@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module Data.DAWG.Internal.GuideUnit where
 
+import Control.DeepSeq (NFData)
 import Data.Binary
 import Data.Vector.Unboxed.Mutable (Unbox)
 
@@ -18,7 +19,7 @@ newtype GuideUnit = GuideUnit
        , UCharType -- sibling
        )
   }
-  deriving newtype (Show, Binary)
+  deriving newtype (Show, Binary, NFData)
 
 newtype instance UV.MVector s GuideUnit = MV_GuideUnit (UV.MVector s (UCharType, UCharType))
 newtype instance UV.Vector GuideUnit = V_GuideUnit (UV.Vector (UCharType, UCharType))
@@ -29,17 +30,22 @@ deriving newtype instance Unbox GuideUnit
 
 empty :: GuideUnit
 empty = GuideUnit (0, 0)
+{-# INLINE empty #-}
 
 child :: GuideUnit -> UCharType
 child (GuideUnit (!child', !_)) = child'
+{-# INLINE child #-}
 
 sibling :: GuideUnit -> UCharType
 sibling (GuideUnit (!_, !sibling')) = sibling'
+{-# INLINE sibling #-}
 
 setChild :: UCharType -> GuideUnit -> GuideUnit
 setChild !newChild (GuideUnit (!_oldChild, !sibling')) =
   GuideUnit (newChild, sibling')
+{-# INLINE setChild #-}
 
 setSibling :: UCharType -> GuideUnit -> GuideUnit
 setSibling !newSibling (GuideUnit (!child', !_oldSibling)) =
   GuideUnit (child', newSibling)
+{-# INLINE setSibling #-}

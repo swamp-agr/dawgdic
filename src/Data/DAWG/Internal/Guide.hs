@@ -1,5 +1,6 @@
 module Data.DAWG.Internal.Guide where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (forM_)
 import Data.Binary
 import Data.Vector (Vector)
@@ -20,22 +21,26 @@ import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 data Guide = Guide
   { guideUnits :: Vector GuideUnit
   , guideSize :: SizeType
-  } deriving (Generic, Binary)
+  } deriving (Generic, Binary, NFData)
 
 empty :: Guide
 empty = Guide
   { guideUnits = Vector.empty
   , guideSize = 0
   }
+{-# INLINE empty #-}
 
 root :: BaseType
 root = 0
+{-# INLINE root #-}
 
 child :: HasCallStack => BaseType -> Guide -> UCharType
 child !ix !g = GuideUnit.child (guideUnits g Vector.! fromIntegral ix)
+{-# INLINE child #-}
 
 sibling :: HasCallStack => BaseType -> Guide -> UCharType
 sibling !ix !g = GuideUnit.sibling (guideUnits g Vector.! fromIntegral ix)
+{-# INLINE sibling #-}
 
 read :: HasCallStack => FilePath -> IO Guide
 read = Binary.decodeFile

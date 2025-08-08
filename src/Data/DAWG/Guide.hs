@@ -1,6 +1,7 @@
 module Data.DAWG.Guide
   ( Guide (..)
-  , buildGuide
+  , build
+  , build'
   , empty
   , child
   , sibling

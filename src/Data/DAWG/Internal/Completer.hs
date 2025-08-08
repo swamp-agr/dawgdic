@@ -39,6 +39,7 @@ new dict guide = Completer
   , completerIndexStack = EndOfStack
   , completerLastIndex = 0
   }
+{-# INLINE new #-}
 
 start :: HasCallStack => BaseType -> String -> Completer -> Completer
 start !ix !prefix !c =
@@ -57,17 +58,20 @@ start !ix !prefix !c =
               else 0 -- completerLastIndex c
            }
       in nc
+{-# INLINE start #-}
 
 next :: HasCallStack => Completer -> Maybe Completer
 next !c =
   let withNonEmptyStack comp action = case completerIndexStack comp of
         EndOfStack -> Nothing
         Elem !ix !_rest -> action ix comp
+      {-# INLINE withNonEmptyStack #-}
         
       withNonRootLastIndex !ix comp action =
         case completerLastIndex comp /= Dict.root of
           True -> action ix comp
           False -> findTerminal ix comp
+      {-# INLINE withNonRootLastIndex #-}
 
       withChildLabel !ix comp =
 #ifdef trace
@@ -83,6 +87,7 @@ next !c =
             if childLabel /= 0
               then followTerminal childLabel ix comp
               else go ix comp
+      {-# INLINE withChildLabel #-}
 
       go :: HasCallStack => BaseType -> Completer -> Maybe Completer
       go !ix' !c' =
@@ -107,6 +112,7 @@ next !c =
         case follow label' ix' c' of
           Nothing -> Nothing
           Just (!nextIx, !nextC) -> findTerminal nextIx nextC
+      {-# INLINE followTerminal #-}
 
       nextByIx ix comp =
 #ifdef trace
@@ -116,9 +122,9 @@ next !c =
           pure $!
 #endif
             withNonRootLastIndex ix comp withChildLabel
-
+      {-# INLINE nextByIx #-}
   in withNonEmptyStack c nextByIx
-
+{-# INLINE next #-}
 
 follow :: HasCallStack => CharType -> BaseType -> Completer -> Maybe (BaseType, Completer)
 follow !label !ix !c =
@@ -136,6 +142,7 @@ follow !label !ix !c =
               `Vector.snoc` 0
           !nc = c { completerKey = nkey, completerIndexStack = Elem nextIx oldStack }
       in Just (nextIx, nc)
+{-# INLINE follow #-}
 
 findTerminal :: HasCallStack => BaseType -> Completer -> Maybe Completer
 findTerminal !ix !c
@@ -160,15 +167,19 @@ findTerminal !ix !c
                          , completerIndexStack = Elem nextIx oldStack
                          }
              in findTerminal nextIx nc
+{-# INLINE findTerminal #-}
 
 keyToString :: HasCallStack => Vector UCharType -> String
 keyToString = fmap (chr . fromIntegral) . safeInit . Vector.toList
   where
     safeInit [] = []
     safeInit xs = init xs
+    {-# INLINE safeInit #-}
+{-# INLINE keyToString #-}
     
 value :: HasCallStack => Completer -> ValueType
 value c = Dict.value (completerLastIndex c) (completerDictionary c)
+{-# INLINE value #-}
 
 dump :: HasCallStack => String -> Completer -> IO ()
 dump prefix Completer{..} = do
@@ -178,3 +189,22 @@ dump prefix Completer{..} = do
         , "lastIx " <> show completerLastIndex
         ]
   putStrLn msg
+
+completeKeys :: String -> Dictionary -> Guide -> [String]
+completeKeys prefix dict guide = 
+  let !c = new dict guide
+      goDict acc !dictIx = 
+        let !l = fromIntegral $ length prefix
+        in case Dict.followPrefixLength prefix l dictIx dict of
+          Nothing -> acc
+          Just nextDictIx ->
+            let !nc = start nextDictIx "" c
+                !nacc = goNext acc nc
+            in goDict nacc nextDictIx
+      goNext acc comp = case next comp of
+        Nothing -> acc
+        Just !nc ->
+          let !nextWord = concat [prefix, keyToString $ completerKey nc]
+          in goNext (nextWord : acc) nc
+  in reverse $ goDict [] Dict.root
+{-# INLINE completeKeys #-}
