@@ -34,7 +34,7 @@ generateN fullLexiconPath n = do
 -- | @fullLexiconPath@ should nbe the relative or absolute local path to the file @words_alpha.txt@
 -- from <https://github.com/dwyl/english-words/tree/master>.
 -- Consider downloading and unpacking @words_alpha.zip@.
-generateAll fullLexiconPath = mapM_ (generateN fullLexiconPath) [10, 100, 1000, 10000]
+generateAll fullLexiconPath = mapM_ (generateN fullLexiconPath) [10, 100, 1000]
 
 -- ** Utilities
 
