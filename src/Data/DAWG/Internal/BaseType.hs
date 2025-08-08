@@ -23,6 +23,7 @@ type BaseType = Word32
 
 baseTypeSize :: SizeType
 baseTypeSize = 4
+{-# INLINE baseTypeSize #-}
 
 hashBaseType :: BaseType -> Int
 hashBaseType u =

@@ -55,8 +55,11 @@ type DawgBuilderM m =
 
 numOfStates, numOfMergedTransitions, numOfMergingStates :: Int
 numOfStates = 0
+{-# INLINE numOfStates #-}
 numOfMergedTransitions = 1
+{-# INLINE numOfMergedTransitions #-}
 numOfMergingStates = 2
+{-# INLINE numOfMergingStates #-}
 
 new :: DawgBuilderM m => m (DAWGBuilder m)
 new = do
@@ -72,6 +75,7 @@ new = do
   let db = DAWGBuilder{..}
   unDBRef <- newMutVar db
   pure DBRef {..}  
+{-# INLINE new #-}
 
 -- | Initializes an object.
 init
@@ -88,6 +92,7 @@ init dbref = do
   db <- readMutVar (unDBRef dbref)
   dawgBuilderUnitPool db <~~ 0 $ DawgUnit.setLabel DawgUnit.empty 0xFF
   push 0 (dawgBuilderUnfixedUnits db)
+{-# INLINE init #-}
 
 insert
   :: HasCallStack
@@ -104,6 +109,7 @@ insert ks mValue db = do
           l = Vector.length ks'
       insertKey ks' l v db
     else pure False
+{-# INLINE insert #-}
 
 insertWithLength
   :: HasCallStack
@@ -119,6 +125,7 @@ insertWithLength ks l v db =
       then insertKey ks l v db
       else pure False
     else pure False
+{-# INLINE insertWithLength #-}
 
 insertKey
   :: HasCallStack
@@ -199,7 +206,6 @@ insertKey ks l v dbref@DBRef{..} = do
       do
         traceWith dump dbref
 #endif
-
       pure True
 
 freeze
@@ -247,6 +253,7 @@ freeze dbref@DBRef{..} = do
     , dawgNumOfMergedStates = fromIntegral numOfMergedStates
     , dawgNumOfMergingStates = fromIntegral fnumOfMergingStates
     }
+{-# INLINE freeze #-}
 
 fromAscList :: HasCallStack => PrimMonad m => [String] -> m DAWG
 fromAscList lexicon = do
@@ -254,6 +261,7 @@ fromAscList lexicon = do
   forM_ lexicon \w -> do
     insert (Vector.fromList w) Nothing db
   freeze db
+{-# INLINE fromAscList #-}
 
 -- | Gets a unit from an object pool.
 allocateUnit
@@ -281,6 +289,7 @@ freeUnit db !ix = do
   prevStack <- readMutVar (unStackRef $ dawgBuilderUnusedUnits db)
   let !stack = Elem ix prevStack
   writeMutVar (unStackRef $ dawgBuilderUnusedUnits db) stack
+{-# INLINE freeUnit #-}
 
 -- | Gets a transition from object pools.
 allocateTransition
@@ -435,7 +444,6 @@ fixUnits !index dbref@DBRef{..} = do
   readMutVar unDBRef >>= \ldb -> do
     pop (dawgBuilderUnfixedUnits ldb)
     writeMutVar unDBRef ldb
-        
 
 expandHashTable
   :: DawgBuilderM m
@@ -459,7 +467,7 @@ expandHashTable dbref@DBRef{..} = do
 #ifdef trace
   traceIO $ "expandHashTable done"
 #endif
-
+{-# INLINE expandHashTable #-}
 
 findTransition
   :: DawgBuilderM m
@@ -483,6 +491,7 @@ findTransition !index dbref@DBRef{..} = do
             go (succ hid `mod` fromIntegral htsize')
 
   go startHashId
+{-# INLINE findTransition #-}
 
 findUnit
   :: DawgBuilderM m
@@ -522,6 +531,7 @@ findUnit !unitIndex dbref@DBRef{..} = do
     ]
 #endif
   findInTable hashId
+{-# INLINE findUnit #-}
 
 areEqual
   :: DawgBuilderM m
@@ -582,6 +592,7 @@ areEqual !unitIndex !transitionIndex !DBRef{..} = do
   if inTransitionMismatch
     then pure False
     else snd <$> goBack outTransitionIndex (fromIntegral unitIndex)
+{-# INLINE areEqual #-}
 
 -- | Calculates a hash value from a transition.
 hashTransition :: forall m. PrimMonad m => BaseType -> DAWGBuilder m -> m BaseType
@@ -599,6 +610,7 @@ hashTransition !ix DBRef{..} = do
         let !newHashValue = hv .^. hashBaseType ((label' .<<. 24) .^. fromIntegral base')
         if itHasSibling then go newHashValue (succ ix') else pure newHashValue
   fromIntegral <$> go 0 ix
+{-# INLINE hashTransition #-}
 
 -- | Calculates a hash value from a unit.
 hashUnit
@@ -622,6 +634,7 @@ hashUnit !ix DBRef{..} = do
         go newHashValue next
 
   go 0 (fromIntegral ix)
+{-# INLINE hashUnit #-}
 
 dump :: DAWGBuilder IO -> IO ()
 dump DBRef{..} = do
@@ -671,3 +684,4 @@ resize ht newSize = do
     GT -> do
       forM_ [newSize .. htsize - 1] \ix -> do
         HT.delete ht (fromIntegral ix)
+{-# INLINE resize #-}

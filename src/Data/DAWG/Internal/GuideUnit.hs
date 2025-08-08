@@ -30,17 +30,22 @@ deriving newtype instance Unbox GuideUnit
 
 empty :: GuideUnit
 empty = GuideUnit (0, 0)
+{-# INLINE empty #-}
 
 child :: GuideUnit -> UCharType
 child (GuideUnit (!child', !_)) = child'
+{-# INLINE child #-}
 
 sibling :: GuideUnit -> UCharType
 sibling (GuideUnit (!_, !sibling')) = sibling'
+{-# INLINE sibling #-}
 
 setChild :: UCharType -> GuideUnit -> GuideUnit
 setChild !newChild (GuideUnit (!_oldChild, !sibling')) =
   GuideUnit (newChild, sibling')
+{-# INLINE setChild #-}
 
 setSibling :: UCharType -> GuideUnit -> GuideUnit
 setSibling !newSibling (GuideUnit (!child', !_oldSibling)) =
   GuideUnit (child', newSibling)
+{-# INLINE setSibling #-}

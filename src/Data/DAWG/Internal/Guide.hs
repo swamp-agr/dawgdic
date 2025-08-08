@@ -28,15 +28,19 @@ empty = Guide
   { guideUnits = Vector.empty
   , guideSize = 0
   }
+{-# INLINE empty #-}
 
 root :: BaseType
 root = 0
+{-# INLINE root #-}
 
 child :: HasCallStack => BaseType -> Guide -> UCharType
 child !ix !g = GuideUnit.child (guideUnits g Vector.! fromIntegral ix)
+{-# INLINE child #-}
 
 sibling :: HasCallStack => BaseType -> Guide -> UCharType
 sibling !ix !g = GuideUnit.sibling (guideUnits g Vector.! fromIntegral ix)
+{-# INLINE sibling #-}
 
 read :: HasCallStack => FilePath -> IO Guide
 read = Binary.decodeFile

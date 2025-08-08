@@ -49,6 +49,7 @@ new guideBuilderDawg guideBuilderDictionary = do
   guideBuilderIsFixedTable <- V.new 0
   let g = GuideBuilder{..}
   GRef <$> newMutVar g
+{-# INLINE new #-}
 
 build :: HasCallStack => GuideM m => DAWG -> Dictionary -> m (Maybe Guide)
 build dawg dict = do
@@ -62,11 +63,13 @@ build dawg dict = do
       buildGuideFromIndexes Dawg.root Dict.root gb >>= \case
         Nothing -> pure Nothing
         Just () -> freeze gb
+{-# INLINE build #-}
 
 build' :: HasCallStack => GuideM m => DAWG -> Dictionary -> m Guide
 build' dawg dict = build dawg dict >>= \case
   Just guide -> pure guide
   Nothing -> error "failed to build guide"
+{-# INLINE build' #-}
 
 resizeUnitsAndFlagsForGuide :: GuideM m => GuideBuilder m -> m ()
 resizeUnitsAndFlagsForGuide GRef{..} = do
@@ -80,6 +83,7 @@ resizeUnitsAndFlagsForGuide GRef{..} = do
     $ if flagsSize < dictSize then dictSize - flagsSize else 0
   let !ngb = gb { guideBuilderUnits = newUnits, guideBuilderIsFixedTable = newFlags }
   writeMutVar getGRef ngb
+{-# INLINE resizeUnitsAndFlagsForGuide #-}
 
 buildGuideFromIndexes :: GuideM m => BaseType -> BaseType -> GuideBuilder_ m -> m (Maybe ())
 buildGuideFromIndexes !dawgIx !dictIx !gb = do
@@ -150,17 +154,20 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
                             go dawgSiblingIx dictIx'
 
           go dawgChildIx' dictIx
-          
+{-# INLINE buildGuideFromIndexes #-}
+
 setIsFixed :: GuideM m => BaseType -> GuideBuilder_ m -> m ()
 setIsFixed !ix gb = do
   let setIsFixed' !v = v .|. (1 .<<. (fromIntegral ix `mod` 8))
   guideBuilderIsFixedTable gb !<~~ (fromIntegral ix `div` 8) $! setIsFixed'
+{-# INLINE setIsFixed #-}
 
 isFixed :: GuideM m => BaseType -> GuideBuilder_ m -> m Bool
 isFixed !ix gb = do
   v <- guideBuilderIsFixedTable gb !~ (fromIntegral ix `div` 8)
   let x = v .&. (1 .<<. (fromIntegral ix `mod` 8))
   pure $ x /= 0
+{-# INLINE isFixed #-}
 
 freeze :: GuideM m => GuideBuilder_ m -> m (Maybe Guide)
 freeze gb = do
@@ -168,3 +175,4 @@ freeze gb = do
   let !guideUnits = (Vector.fromList . UV.toList) funits
   let !guideSize = fromIntegral $ Vector.length guideUnits
   pure $ Just Guide{..}
+{-# INLINE freeze #-}

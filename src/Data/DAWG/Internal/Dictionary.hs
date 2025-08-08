@@ -31,20 +31,25 @@ data Dictionary = Dictionary
 
 totalSize :: Dictionary -> SizeType
 totalSize d = DictionaryUnit.size * dictionarySize d 
+{-# INLINE totalSize #-}
 
 fileSize :: Dictionary -> SizeType
 fileSize d = baseTypeSize + totalSize d
+{-# INLINE fileSize #-}
 
 root :: BaseType
 root = 0
+{-# INLINE root #-}
 
 hasValue :: HasCallStack => BaseType -> Dictionary -> Bool
 hasValue !ix d = DictionaryUnit.hasLeaf (dictionaryUnits d UV.! fromIntegral ix)
+{-# INLINE hasValue #-}
 
 value :: HasCallStack => BaseType -> Dictionary -> ValueType
 value !ix d = DictionaryUnit.value (dictionaryUnits d UV.! fromIntegral oix)
   where
     !oix = ix .^. DictionaryUnit.offset (dictionaryUnits d UV.! fromIntegral ix)
+{-# INLINE value #-}
 
 read :: HasCallStack => FilePath -> IO Dictionary
 read = Binary.decodeFile
@@ -57,24 +62,28 @@ contains !key d =
   case follow key root d of
     Nothing -> False
     Just ix -> hasValue ix d
+{-# INLINE contains #-}
 
 containsPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Bool
 containsPrefixLength !k !l d =
   case followPrefixLength k l root d of
     Nothing -> False
     Just ix -> hasValue ix d
+{-# INLINE containsPrefixLength #-}
 
 lookup :: HasCallStack => String -> Dictionary -> Maybe ValueType
 lookup !k d =
   case follow k root d of
     Nothing -> Nothing
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
+{-# INLINE lookup #-}
 
 lookupPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Maybe ValueType
 lookupPrefixLength !k !l d =
   case followPrefixLength k l root d of
     Nothing -> Nothing
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
+{-# INLINE lookupPrefixLength #-}
 
 followChar :: HasCallStack => CharType -> BaseType -> Dictionary -> Maybe BaseType
 followChar !l !ix d =
@@ -93,6 +102,7 @@ followChar !l !ix d =
       tracePure debugStr $
 #endif
         if DictionaryUnit.label nu /= fromIntegral l then Nothing else Just nextIx
+{-# INLINE followChar #-}
 
 follow :: HasCallStack => String -> BaseType -> Dictionary -> Maybe BaseType
 follow [] !ix _d = Just ix
@@ -101,6 +111,7 @@ follow (!c : !cs) !ix d = if ord c == fromIntegral (ord '\0')
   else case followChar (fromIntegral . ord $ c) ix d of
          Nothing -> Nothing
          Just !nextIx -> follow cs nextIx d
+{-# INLINE follow #-}
 
 followPrefixLength
   :: HasCallStack => String -> SizeType -> BaseType -> Dictionary -> Maybe BaseType
@@ -114,6 +125,7 @@ followPrefixLength !cs !l !ix d =
                 Nothing -> Nothing
                 Just !nIx -> follow' nIx is
     in follow' ix [0 .. pred l]
+{-# INLINE followPrefixLength #-}
 
 dump :: HasCallStack => Dictionary -> IO ()
 dump d = do

@@ -15,17 +15,20 @@ init :: PrimMonad m => LinkTable m -> BaseType -> m ()
 init ht size = do
   forM_ [0 .. size - 1] \ix -> do
     HT.insert ht (fromIntegral ix) (0, 0)
+{-# INLINE init #-}
 
 insert :: PrimMonad m => LinkTable m -> BaseType -> BaseType -> m ()
 insert ht !ix !offset = do
   !hid <- findId ht ix
   HT.insert ht hid (ix, offset)
+{-# INLINE insert #-}
 
 -- | Find an offset that corresponds to a given index.
 find :: PrimMonad m => LinkTable m -> BaseType -> m BaseType
 find ht ix = do
   !hid <- findId ht ix
   HT.lookup ht hid >>= pure . fromMaybe 0 . fmap snd
+{-# INLINE find #-}
 
 -- ** Helpers
 
@@ -42,4 +45,5 @@ findId ht !ix = do
             then pure hid
             else go nextHid
   go startHid
+{-# INLINE findId #-}
 
