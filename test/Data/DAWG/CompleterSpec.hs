@@ -50,9 +50,9 @@ spec = do
             Nothing -> pure ()
             Just !nc -> do
               appendFile "completer-debug.txt" $ concat
-                [ "key = ", w, show $ completerKey nc, ": ", keyToString $ completerKey nc, "\n" ]
+                [ "key = ", w, show $ completerKey nc, ": ", keyToString nc, "\n" ]
               appendFile completerResultFile $ concat
-                [ " ", w, keyToString $ completerKey nc, " = ", show $ C.value nc ]
+                [ " ", w, keyToString nc, " = ", show $ C.value nc ]
               goNext w nc
 
           go :: BaseType -> String -> String -> Dict.Dictionary -> G.Guide -> IO ()

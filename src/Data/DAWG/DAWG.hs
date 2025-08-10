@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.DAWG
+Description: Exports DAWG API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 module Data.DAWG.DAWG
   ( DAWG(..)
   , new

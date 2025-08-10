@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.GuideBuilder
+Description: Exports guide builder as well as its internal API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.GuideBuilder where
 
@@ -29,21 +36,55 @@ import Data.DAWG.Trace
 
 -- ** Guide Builder
 
+-- | A mutable builder of 'Data.DAWG.Internal.Guide.Guide'.
 newtype GuideBuilder m = GRef { getGRef :: MutVar (PrimState m) (GuideBuilder_ m) }
 
+-- | Builder of Guide. Do not acess directly. Use 'GuideBuilder' instead.
 data GuideBuilder_ m = GuideBuilder
-  { guideBuilderDawg :: DAWG
-  , guideBuilderDictionary :: Dictionary
-  , guideBuilderUnits :: ObjectPool (PrimState m) GuideUnit
-  , guideBuilderIsFixedTable :: ObjectPool (PrimState m) UCharType
+  { guideBuilderDawg :: DAWG -- ^ DAWG.
+  , guideBuilderDictionary :: Dictionary -- ^ Dictionary.
+  , guideBuilderUnits :: ObjectPool (PrimState m) GuideUnit -- ^ Pool of guide units.
+  , guideBuilderIsFixedTable :: ObjectPool (PrimState m) UCharType -- ^ Pool of characters.
   }
 
-type GuideM m =
-  ( PrimMonad m
-  -- , MVector ObjectPool GuideUnit, MVector ObjectPool UCharType
-  )
+-- | Build 'Data.DAWG.Internal.Guide.Guide'
+-- from 'Data.DAWG.Internal.DAWG.DAWG' and 'Data.DAWG.Internal.Dictionary.Dictionary'.
+-- Returns 'False' if build failed.
+build :: HasCallStack => PrimMonad m => DAWG -> Dictionary -> m (Maybe Guide)
+build dawg dict = do
+  gref@GRef{..} <- new dawg dict
+  resizeUnitsAndFlags gref
 
-new :: GuideM m => DAWG -> Dictionary -> m (GuideBuilder m)
+  gb <- readMutVar getGRef
+  if dictionarySize (guideBuilderDictionary gb) == 1
+    then freeze gb >>= pure . Just
+    else do
+      buildFromIndexes Dawg.root Dict.root gb >>= \case
+        False -> pure Nothing
+        True -> freeze gb >>= pure . Just
+{-# INLINE build #-}
+
+-- | Same as 'build' but throws an error if build fails.
+build' :: HasCallStack => PrimMonad m => DAWG -> Dictionary -> m Guide
+build' dawg dict = build dawg dict >>= \case
+  Just guide -> pure guide
+  Nothing -> error "failed to build guide"
+{-# INLINE build' #-}
+
+-- | Generates 'Data.DAWG.Internal.Guide.Guide' out of 'GuideBuilder'.
+-- Once this function is called, 'GuideBuilder' must not be used anymore.
+freeze :: PrimMonad m => GuideBuilder_ m -> m Guide
+freeze gb = do
+  funits <- UV.freeze $ guideBuilderUnits gb  
+  let !guideUnits = (Vector.fromList . UV.toList) funits
+  let !guideSize = fromIntegral $ Vector.length guideUnits
+  pure Guide{..}
+{-# INLINE freeze #-}
+
+-- ** Helpers
+
+-- | Initialises a new 'GuideBuilder' from DAWG and Dictionary.
+new :: PrimMonad m => DAWG -> Dictionary -> m (GuideBuilder m)
 new guideBuilderDawg guideBuilderDictionary = do
   guideBuilderUnits <- V.new 0
   guideBuilderIsFixedTable <- V.new 0
@@ -51,28 +92,9 @@ new guideBuilderDawg guideBuilderDictionary = do
   GRef <$> newMutVar g
 {-# INLINE new #-}
 
-build :: HasCallStack => GuideM m => DAWG -> Dictionary -> m (Maybe Guide)
-build dawg dict = do
-  gref@GRef{..} <- new dawg dict
-  resizeUnitsAndFlagsForGuide gref
-
-  gb <- readMutVar getGRef
-  if dictionarySize (guideBuilderDictionary gb) == 1
-    then freeze gb
-    else do
-      buildGuideFromIndexes Dawg.root Dict.root gb >>= \case
-        Nothing -> pure Nothing
-        Just () -> freeze gb
-{-# INLINE build #-}
-
-build' :: HasCallStack => GuideM m => DAWG -> Dictionary -> m Guide
-build' dawg dict = build dawg dict >>= \case
-  Just guide -> pure guide
-  Nothing -> error "failed to build guide"
-{-# INLINE build' #-}
-
-resizeUnitsAndFlagsForGuide :: GuideM m => GuideBuilder m -> m ()
-resizeUnitsAndFlagsForGuide GRef{..} = do
+-- | Resize both units and flags based on a dictionary size. If guide size is equal or greater than dictionary size, it will leave guide builder unchanged.
+resizeUnitsAndFlags :: PrimMonad m => GuideBuilder m -> m ()
+resizeUnitsAndFlags GRef{..} = do
   gb <- readMutVar getGRef
   let dictSize = fromIntegral $ dictionarySize $ guideBuilderDictionary gb
       unitsSize = V.length $ guideBuilderUnits gb
@@ -83,10 +105,12 @@ resizeUnitsAndFlagsForGuide GRef{..} = do
     $ if flagsSize < dictSize then dictSize - flagsSize else 0
   let !ngb = gb { guideBuilderUnits = newUnits, guideBuilderIsFixedTable = newFlags }
   writeMutVar getGRef ngb
-{-# INLINE resizeUnitsAndFlagsForGuide #-}
+{-# INLINE resizeUnitsAndFlags #-}
 
-buildGuideFromIndexes :: GuideM m => BaseType -> BaseType -> GuideBuilder_ m -> m (Maybe ())
-buildGuideFromIndexes !dawgIx !dictIx !gb = do
+-- | Build guide recursively from dawg index and dictionary index.
+-- Returns 'Nothing' if fails.
+buildFromIndexes :: PrimMonad m => BaseType -> BaseType -> GuideBuilder_ m -> m Bool
+buildFromIndexes !dawgIx !dictIx !gb = do
 #ifdef trace
   ifd <- isFixed dictIx gb
   traceIO $ concat
@@ -96,7 +120,7 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
     ]
 #endif
   isFixed dictIx gb >>= \case
-    True -> pure (Just ())
+    True -> pure True
     False -> do
       setIsFixed dictIx gb
 
@@ -117,13 +141,13 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
 
       !dawgChildIx' <- readMutVar dawgChildIxRef
       if dawgChildIx' == 0
-        then pure $ Just ()
+        then pure True
         else do
           guideBuilderUnits gb !<~~ dictIx
             $! GuideUnit.setChild $! Dawg.label dawgChildIx' dawg
 
           let go !ix !dictIx'
-                | ix == 0 = pure $ Just ()
+                | ix == 0 = pure True
                 | otherwise = do
                     let !childLabel = Dawg.label ix dawg
 #ifdef trace
@@ -133,7 +157,7 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
                       ]
 #endif
                     case Dict.followChar (fromIntegral childLabel) dictIx' dict of
-                      Nothing -> pure Nothing
+                      Nothing -> pure False
                       Just dictChildIx -> do
 #ifdef trace
                         traceIO $ concat
@@ -142,9 +166,9 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
                           ]
 #endif
                         -- outer recursion loop
-                        buildGuideFromIndexes ix dictChildIx gb >>= \case
-                          Nothing -> pure Nothing
-                          Just () -> do
+                        buildFromIndexes ix dictChildIx gb >>= \case
+                          False -> pure False
+                          True -> do
                             let !dawgSiblingIx = Dawg.sibling ix dawg
                                 !siblingLabel = Dawg.label dawgSiblingIx dawg
                             when (dawgSiblingIx /= 0) do
@@ -154,25 +178,19 @@ buildGuideFromIndexes !dawgIx !dictIx !gb = do
                             go dawgSiblingIx dictIx'
 
           go dawgChildIx' dictIx
-{-# INLINE buildGuideFromIndexes #-}
+{-# INLINE buildFromIndexes #-}
 
-setIsFixed :: GuideM m => BaseType -> GuideBuilder_ m -> m ()
+-- | Sets dictionary unit as fixed by index.
+setIsFixed :: PrimMonad m => BaseType -> GuideBuilder_ m -> m ()
 setIsFixed !ix gb = do
   let setIsFixed' !v = v .|. (1 .<<. (fromIntegral ix `mod` 8))
   guideBuilderIsFixedTable gb !<~~ (fromIntegral ix `div` 8) $! setIsFixed'
 {-# INLINE setIsFixed #-}
 
-isFixed :: GuideM m => BaseType -> GuideBuilder_ m -> m Bool
+-- | Checks whether given dictionary index is fixed or not.
+isFixed :: PrimMonad m => BaseType -> GuideBuilder_ m -> m Bool
 isFixed !ix gb = do
   v <- guideBuilderIsFixedTable gb !~ (fromIntegral ix `div` 8)
   let x = v .&. (1 .<<. (fromIntegral ix `mod` 8))
   pure $ x /= 0
 {-# INLINE isFixed #-}
-
-freeze :: GuideM m => GuideBuilder_ m -> m (Maybe Guide)
-freeze gb = do
-  funits <- UV.freeze $ guideBuilderUnits gb  
-  let !guideUnits = (Vector.fromList . UV.toList) funits
-  let !guideSize = fromIntegral $ Vector.length guideUnits
-  pure $ Just Guide{..}
-{-# INLINE freeze #-}

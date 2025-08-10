@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.DictionaryBuilder
+Description: Exports dictionary builder as well as its internal API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.DictionaryBuilder where
 
@@ -32,124 +39,64 @@ import Data.DAWG.Trace
 
 -- ** DAWG Dictionary Builder
 
+-- | A mutable builder of 'Data.DAWG.Internal.Dictionary.Dictionary'.
 newtype DictionaryBuilder m =
   DDBRef { getDDBRef :: MutVar (PrimState m) (DictionaryBuilder_ m) }
 
+-- | Builder of Dictionary. Do not access directly. Use 'DictionaryBuilder' instead.
 data DictionaryBuilder_ m = DictionaryBuilder
-  { dawgDictionaryBuilderDawg :: DAWG
-  , dawgDictionaryBuilderUnits :: ObjectPool (PrimState m) DictionaryUnit
-  , dawgDictionaryBuilderExtras :: UHHT m BaseType DictionaryExtraUnit
+  { dawgDictionaryBuilderDawg :: DAWG -- ^ DAWG.
+  , dawgDictionaryBuilderUnits :: ObjectPool (PrimState m) DictionaryUnit -- ^ Pool of dictionary units.
+  , dawgDictionaryBuilderExtras :: UHHT m BaseType DictionaryExtraUnit -- ^ Table of extra blocks (of 256) which represents supportive circular linked list used.
   , dawgDictionaryBuilderLabels :: UUHT m SizeType UCharType
   , dawgDictionaryBuilderLinkTable :: LT.LinkTable m
   , dawgDictionaryBuilderRefs :: !(IntArray (PrimState m))
   }
 
-type DictionaryBuilderM m = PrimMonad m
-
 unfixedIndex, numOfUnusedUnits :: Int
+
+-- | Use it as index for 'dawgDictionaryBuilderRefs' to get the current unfixed index.
 unfixedIndex = 0
 {-# INLINE unfixedIndex #-}
+
+-- | Use it as index for 'dawgDictionaryBuilderRefs' to get the number of unfixed units.
 numOfUnusedUnits = 1
 {-# INLINE numOfUnusedUnits #-}
 
+-- | Upper mask.
 upperMask :: BaseType
 upperMask = complement (pred DictUnit.offsetMax)
 {-# INLINE upperMask #-}
 
+-- | Lower mask.
 lowerMask :: BaseType
 lowerMask = 0xFF
 {-# INLINE lowerMask #-}
 
-newLabels :: PrimMonad m => m (UUHT m SizeType UCharType)
-newLabels = HT.initialize 0
-{-# INLINE newLabels #-}
+-- | Gets a current size of units.
+numOfUnits :: DictionaryBuilder_ m -> BaseType
+numOfUnits = fromIntegral . V.length . dawgDictionaryBuilderUnits
+{-# INLINE numOfUnits #-}
 
-lookupBlock
-  :: (HasCallStack, PrimMonad m)
-  => DictionaryBuilder_ m -> BaseType -> m (UUHT m BaseType DictionaryExtraUnit)
-lookupBlock ddb ix =
-  HT.lookup (dawgDictionaryBuilderExtras ddb) (ix `div` blockSize) >>= \case
-    Nothing -> error "Missing block"
-    Just block -> pure block
-{-# INLINE lookupBlock #-}
+-- | Gets a current size of blocks.
+numOfBlocks :: PrimMonad m => DictionaryBuilder_ m -> m BaseType
+numOfBlocks = fmap fromIntegral . HT.size . dawgDictionaryBuilderExtras
+{-# INLINE numOfBlocks #-}
 
-insertBlock
-  :: PrimMonad m
-  => DictionaryBuilder_ m -> UUHT m BaseType DictionaryExtraUnit -> BaseType -> m ()
-insertBlock ddb block ix =
-  HT.insert (dawgDictionaryBuilderExtras ddb) (ix `div` blockSize) block
-{-# INLINE insertBlock #-}
+-- | Constant: @16@.
+numOfUnfixedBlocks :: BaseType
+numOfUnfixedBlocks = 16
+{-# INLINE numOfUnfixedBlocks #-}
 
-swapBlocks
-  :: (HasCallStack, PrimMonad m)
-  => DictionaryBuilder_ m -> BaseType -> BaseType -> m ()
-swapBlocks ddb b1 b2 = do
-  let getBlock blockId =
-        HT.lookup (dawgDictionaryBuilderExtras ddb) blockId >>= \case
-          Nothing -> error "Missing block"
-          Just block -> pure block
+-- | Constant: @256@.
+blockSize :: BaseType
+blockSize = 256
+{-# INLINE blockSize #-}
 
-  block1 <- getBlock b1
-  block2 <- getBlock b2
-
-  HT.insert (dawgDictionaryBuilderExtras ddb) b1 block2
-  HT.insert (dawgDictionaryBuilderExtras ddb) b2 block1
-{-# INLINE swapBlocks #-}
-
-extras
-  :: forall m. HasCallStack
-  => DictionaryBuilderM m
-  => DictionaryBuilder_ m -> BaseType -> m DictionaryExtraUnit
-extras !ddb !ix = do
-  !block <- lookupBlock ddb ix
-  fromMaybe Extra.empty <$> HT.lookup block (ix `mod` blockSize)
-{-# INLINE extras #-}
-
-modifyExtras
-  :: HasCallStack
-  => DictionaryBuilderM m
-  => DictionaryBuilder_ m
-  -> BaseType -> (DictionaryExtraUnit -> DictionaryExtraUnit) -> m ()
-modifyExtras !ddb !ix modifier = do
-  !block <- lookupBlock ddb ix
-  let f Nothing = Just $! modifier Extra.empty
-      f (Just !x) = Just $! modifier x
-  HT.alter block f (ix `mod` blockSize)
-{-# INLINE modifyExtras #-}
-
-allocateExtras
-  :: HasCallStack
-  => DictionaryBuilderM m
-  => DictionaryBuilder_ m -> BaseType -> m ()
-allocateExtras !ddb destSize = do
-  srcSize <- numOfBlocks ddb
-  when (srcSize < destSize) do
-    forM_ [srcSize .. pred destSize] \ix -> do
-      block <- HT.initialize 0
-      forM_ [0 .. pred blockSize] \bix -> do
-        HT.insert block bix Extra.empty
-      HT.insert (dawgDictionaryBuilderExtras ddb) ix block
-{-# INLINE allocateExtras #-}
-
-new :: HasCallStack => DictionaryBuilderM m => DAWG -> m (DictionaryBuilder m)
-new !dawgDictionaryBuilderDawg = do
-   !dawgDictionaryBuilderUnits <- V.new 0
-   !dawgDictionaryBuilderExtras <- HT.initialize 0
-   !dawgDictionaryBuilderLabels <- newLabels
-   !dawgDictionaryBuilderLinkTable <- HT.initialize 0
-   !dawgDictionaryBuilderRefs <- A.replicate 2 0
-   dawgDictionaryBuilderRefs <~ unfixedIndex $ 0
-#ifdef trace
-   !uix <- dawgDictionaryBuilderRefs ! unfixedIndex
-   traceIO ("new dictionary builder: uix " <> show uix)
-#endif
-   let d = DictionaryBuilder{..}
-   DDBRef <$> newMutVar d
-{-# INLINE new #-}
-
+-- | Build dictionary o
 build
   :: HasCallStack
-  => DictionaryBuilderM m
+  => PrimMonad m
   => DAWG -> m (Maybe (DictionaryBuilder m))
 build !dawg = do
   !dref@DDBRef{..} <- new dawg
@@ -221,15 +168,48 @@ build !dawg = do
 #endif
           pure $! Just dref
 
-build' :: HasCallStack => DictionaryBuilderM m => DAWG -> m Dictionary
+-- | Build a dictionary from 'Data.DAWG.Internal.DAWG.DAWG' and freezes its result.
+-- Throws an error when build fails.
+build' :: HasCallStack => PrimMonad m => DAWG -> m Dictionary
 build' dawg = build dawg >>= \case
   Just dict -> freeze dict
   Nothing -> error "failed to build dictionary"
 {-# INLINE build' #-}
 
+-- | Generates 'Data.DAWG.Internal.Dictionary.Dictionary' out of 'DictionaryBuilder'.
+-- Once this function is called, 'DictionaryBuilder' must not be used anymore.
+freeze :: PrimMonad m => DictionaryBuilder m -> m Dictionary
+freeze DDBRef{..} = do
+  ddb <- readMutVar getDDBRef
+  dictionaryUnits <- VG.unsafeFreeze $! dawgDictionaryBuilderUnits ddb
+  let dictionarySize = fromIntegral $! VG.length dictionaryUnits
+  pure Dictionary{..}
+{-# INLINE freeze #-}
+
+-- ** Helpers
+
+-- | Initialises a new 'DictionaryBuilder' from DAWG.
+new :: HasCallStack => PrimMonad m => DAWG -> m (DictionaryBuilder m)
+new !dawgDictionaryBuilderDawg = do
+   !dawgDictionaryBuilderUnits <- V.new 0
+   !dawgDictionaryBuilderExtras <- HT.initialize 0
+   !dawgDictionaryBuilderLabels <- HT.initialize 0
+   !dawgDictionaryBuilderLinkTable <- HT.initialize 0
+   !dawgDictionaryBuilderRefs <- A.replicate 2 0
+   dawgDictionaryBuilderRefs <~ unfixedIndex $ 0
+#ifdef trace
+   !uix <- dawgDictionaryBuilderRefs ! unfixedIndex
+   traceIO ("new dictionary builder: uix " <> show uix)
+#endif
+   let d = DictionaryBuilder{..}
+   DDBRef <$> newMutVar d
+{-# INLINE new #-}
+
+-- | Recursively build dictionary by traversing DAWG
+-- starting from dawg index and dictionary index.
 buildFromDawg
   :: HasCallStack
-  => DictionaryBuilderM m => BaseType -> BaseType -> DictionaryBuilder m -> m Bool
+  => PrimMonad m => BaseType -> BaseType -> DictionaryBuilder m -> m Bool
 buildFromDawg dawgIx dictIx dref@DDBRef{..} = do
 #ifdef trace
   traceIO ("buildFromDawg dawgIx " <> show dawgIx <> " dictIx " <> show dictIx)
@@ -303,9 +283,10 @@ buildFromDawg dawgIx dictIx dref@DDBRef{..} = do
 
               go dawgChildIx
 
+-- | Arrange child nodes for given dawg index and dictionary index.
 arrangeChildNodes
   :: HasCallStack
-  => DictionaryBuilderM m
+  => PrimMonad m
   => BaseType -> BaseType -> DictionaryBuilder m -> m BaseType
 arrangeChildNodes dawgIx dictIx dref@DDBRef{..} = do
   clearLabels dref
@@ -387,10 +368,10 @@ arrangeChildNodes dawgIx dictIx dref@DDBRef{..} = do
       
       pure offset
 
--- | Find a good offset.
+-- | Find a good offset for given dictionary index.
 findGoodOffset
   :: HasCallStack
-  => DictionaryBuilderM m => BaseType -> DictionaryBuilder_ m -> m BaseType
+  => PrimMonad m => BaseType -> DictionaryBuilder_ m -> m BaseType
 findGoodOffset ix ddb = do
   !unfixedIndex' <- fromIntegral <$> dawgDictionaryBuilderRefs ddb ! unfixedIndex
   let !numOfUnits' = numOfUnits ddb
@@ -427,9 +408,10 @@ findGoodOffset ix ddb = do
       scanUnusedUnits False unfixedIndex'
 {-# INLINE findGoodOffset #-}
 
+-- | Recursively checks whether given offset is good for dictionanry index.
 isGoodOffset
   :: HasCallStack
-  => DictionaryBuilderM m => BaseType -> BaseType -> DictionaryBuilder_ m -> m Bool
+  => PrimMonad m => BaseType -> BaseType -> DictionaryBuilder_ m -> m Bool
 isGoodOffset ix offset ddb = do
   !extra' <- extras ddb offset
   if Extra.isUsed extra' then pure False else do
@@ -448,9 +430,10 @@ isGoodOffset ix offset ddb = do
         findCollision 1
 {-# INLINE isGoodOffset #-}
 
+-- | Reserve a new unit.
 reserveUnit
   :: HasCallStack
-  => DictionaryBuilderM m => BaseType -> DictionaryBuilder m -> m ()
+  => PrimMonad m => BaseType -> DictionaryBuilder m -> m ()
 reserveUnit ix dref = do
   do
     !ddb0 <- readMutVar (getDDBRef dref)
@@ -485,19 +468,8 @@ reserveUnit ix dref = do
   modifyExtras ddb ix $! Extra.setIsFixed
 {-# INLINE reserveUnit #-}
 
-clearBlock
-  :: HasCallStack => DictionaryBuilderM m => BaseType -> DictionaryBuilder_ m -> m ()
-clearBlock !blockId ddb = do
-  block <- HT.lookup (dawgDictionaryBuilderExtras ddb) blockId >>= \case
-    Nothing -> error "Missing block"
-    Just block -> pure block
-  bsize <- HT.size block
-  when (bsize > 0) do
-    forM_ [0 .. pred bsize] \ix -> do
-      HT.insert block (fromIntegral ix `mod` blockSize) Extra.empty
-{-# INLINE clearBlock #-}
-
-expandDictionary :: HasCallStack => DictionaryBuilderM m => DictionaryBuilder m -> m ()
+-- | Expands dictionary by allocating a memory for new unit and block and aligning block elements.
+expandDictionary :: HasCallStack => PrimMonad m => DictionaryBuilder m -> m ()
 expandDictionary dref@DDBRef{..} = do
   (srcNumOfUnits, srcNumOfBlocks, destNumOfUnits, destNumOfBlocks) <- do
     !ddb <- readMutVar getDDBRef
@@ -589,9 +561,10 @@ expandDictionary dref@DDBRef{..} = do
   modifyExtras ddb2 uix $ Extra.setPrev (pred destNumOfUnits)
   writeMutVar getDDBRef ddb2
 
+-- | Fixes all blocks. If there is more than 16 blocks, only unfixed blocks will be fixed.
 fixAllBlocks
   :: HasCallStack
-  => DictionaryBuilderM m
+  => PrimMonad m
   => DictionaryBuilder m -> m ()
 fixAllBlocks dref@DDBRef{..} = do
 #ifdef trace
@@ -611,9 +584,10 @@ fixAllBlocks dref@DDBRef{..} = do
     fixBlock blockId dref
 {-# INLINE fixAllBlocks #-}
 
+-- | Fix block by its id.
 fixBlock
   :: HasCallStack
-  => DictionaryBuilderM m => BaseType -> DictionaryBuilder m -> m ()
+  => PrimMonad m => BaseType -> DictionaryBuilder m -> m ()
 fixBlock blockId dref@DDBRef{..} = do
 #ifdef trace
   traceIO $ concat [ "-fixBlock block ", show blockId ]
@@ -656,41 +630,15 @@ fixBlock blockId dref@DDBRef{..} = do
         | otherwise = pure ()
   go begin
 
-clearLabels :: DictionaryBuilderM m => DictionaryBuilder m -> m ()
+-- | Remove all labels.
+clearLabels :: PrimMonad m => DictionaryBuilder m -> m ()
 clearLabels DDBRef{..} = do
   ddb <- readMutVar getDDBRef
   lkeys <- HT.keys (dawgDictionaryBuilderLabels ddb)
   VG.forM_ lkeys \label -> HT.delete (dawgDictionaryBuilderLabels ddb) label
 {-# INLINE clearLabels #-}
 
-numOfUnits :: DictionaryBuilder_ m -> BaseType
-numOfUnits = fromIntegral . V.length . dawgDictionaryBuilderUnits
-{-# INLINE numOfUnits #-}
-
-numOfBlocks :: PrimMonad m => DictionaryBuilder_ m -> m BaseType
-numOfBlocks = fmap fromIntegral . HT.size . dawgDictionaryBuilderExtras
-{-# INLINE numOfBlocks #-}
-
-numOfUnfixedBlocks :: BaseType
-numOfUnfixedBlocks = 16
-{-# INLINE numOfUnfixedBlocks #-}
-
-unfixedSize :: BaseType
-unfixedSize = blockSize * numOfUnfixedBlocks
-{-# INLINE unfixedSize #-}
-
-blockSize :: BaseType
-blockSize = 256
-{-# INLINE blockSize #-}
-
-freeze :: PrimMonad m => DictionaryBuilder m -> m Dictionary
-freeze DDBRef{..} = do
-  ddb <- readMutVar getDDBRef
-  dictionaryUnits <- VG.unsafeFreeze $! dawgDictionaryBuilderUnits ddb
-  let dictionarySize = fromIntegral $! VG.length dictionaryUnits
-  pure Dictionary{..}
-{-# INLINE freeze #-}
-
+-- | Dump dictionary builder to stdout.
 dump :: DictionaryBuilder IO -> IO ()
 dump DDBRef{..} = do
   ddb <- readMutVar getDDBRef
@@ -718,4 +666,93 @@ dump DDBRef{..} = do
 
   putStrLn $ concat [ "unfixed : ", show uix ]
   putStrLn $ concat [ "num_unused_states : ", show uns ]
+
+-- ** Dictionary extra/blocks helpers
+
+-- | Gets the entire block (hashtable) by its id. Throws an error if the block is missing.
+lookupBlock
+  :: (HasCallStack, PrimMonad m)
+  => DictionaryBuilder_ m -> BaseType -> m (UUHT m BaseType DictionaryExtraUnit)
+lookupBlock ddb ix =
+  HT.lookup (dawgDictionaryBuilderExtras ddb) (ix `div` blockSize) >>= \case
+    Nothing -> error "Missing block"
+    Just block -> pure block
+{-# INLINE lookupBlock #-}
+
+-- | Inserts a block by its index into the hashtable.
+insertBlock
+  :: PrimMonad m
+  => DictionaryBuilder_ m -> UUHT m BaseType DictionaryExtraUnit -> BaseType -> m ()
+insertBlock ddb block ix =
+  HT.insert (dawgDictionaryBuilderExtras ddb) (ix `div` blockSize) block
+{-# INLINE insertBlock #-}
+
+-- | Swap two blocks by their ids. Both blocks should be present.
+-- If at least one of blocks is missing, error will be thrown.
+swapBlocks
+  :: (HasCallStack, PrimMonad m)
+  => DictionaryBuilder_ m -> BaseType -> BaseType -> m ()
+swapBlocks ddb b1 b2 = do
+  let getBlock blockId =
+        HT.lookup (dawgDictionaryBuilderExtras ddb) blockId >>= \case
+          Nothing -> error "Missing block"
+          Just block -> pure block
+
+  block1 <- getBlock b1
+  block2 <- getBlock b2
+
+  HT.insert (dawgDictionaryBuilderExtras ddb) b1 block2
+  HT.insert (dawgDictionaryBuilderExtras ddb) b2 block1
+{-# INLINE swapBlocks #-}
+
+-- | Replaces the content of the block by its id with empty units.
+clearBlock
+  :: HasCallStack => PrimMonad m => BaseType -> DictionaryBuilder_ m -> m ()
+clearBlock !blockId ddb = do
+  block <- HT.lookup (dawgDictionaryBuilderExtras ddb) blockId >>= \case
+    Nothing -> error "Missing block"
+    Just block -> pure block
+  bsize <- HT.size block
+  when (bsize > 0) do
+    forM_ [0 .. pred bsize] \ix -> do
+      HT.insert block (fromIntegral ix `mod` blockSize) Extra.empty
+{-# INLINE clearBlock #-}
+
+-- | Get block content by its id.
+extras
+  :: forall m. HasCallStack
+  => PrimMonad m
+  => DictionaryBuilder_ m -> BaseType -> m DictionaryExtraUnit
+extras !ddb !ix = do
+  !block <- lookupBlock ddb ix
+  fromMaybe Extra.empty <$> HT.lookup block (ix `mod` blockSize)
+{-# INLINE extras #-}
+
+-- | Modifies block content by its id and modifier function.
+modifyExtras
+  :: HasCallStack
+  => PrimMonad m
+  => DictionaryBuilder_ m
+  -> BaseType -> (DictionaryExtraUnit -> DictionaryExtraUnit) -> m ()
+modifyExtras !ddb !ix modifier = do
+  !block <- lookupBlock ddb ix
+  let f Nothing = Just $! modifier Extra.empty
+      f (Just !x) = Just $! modifier x
+  HT.alter block f (ix `mod` blockSize)
+{-# INLINE modifyExtras #-}
+
+-- | Allocates new empty blocks by provided size, if it is greater than 'numOfBlocks'.
+allocateExtras
+  :: HasCallStack
+  => PrimMonad m
+  => DictionaryBuilder_ m -> BaseType -> m ()
+allocateExtras !ddb destSize = do
+  srcSize <- numOfBlocks ddb
+  when (srcSize < destSize) do
+    forM_ [srcSize .. pred destSize] \ix -> do
+      block <- HT.initialize 0
+      forM_ [0 .. pred blockSize] \bix -> do
+        HT.insert block bix Extra.empty
+      HT.insert (dawgDictionaryBuilderExtras ddb) ix block
+{-# INLINE allocateExtras #-}
 

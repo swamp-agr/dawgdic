@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.Dictionary
+Description: Exports dictionary as well as its internal API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.Dictionary where
 
@@ -24,39 +31,38 @@ import Data.DAWG.Trace
 
 -- ** Dictionary
 
+-- | Dictionary.
 data Dictionary = Dictionary
-  { dictionaryUnits :: UV.Vector DictionaryUnit
-  , dictionarySize :: SizeType
+  { dictionaryUnits :: UV.Vector DictionaryUnit -- ^ Array of dictionary units.
+  , dictionarySize :: SizeType -- ^ Size of the dictionary.
   } deriving (Generic, Binary, NFData)
 
-totalSize :: Dictionary -> SizeType
-totalSize d = DictionaryUnit.size * dictionarySize d 
-{-# INLINE totalSize #-}
-
-fileSize :: Dictionary -> SizeType
-fileSize d = baseTypeSize + totalSize d
-{-# INLINE fileSize #-}
-
+-- | Root dictionary index. Equivalent to @0@.
 root :: BaseType
 root = 0
 {-# INLINE root #-}
 
+-- | Checks whether dictionary unit has value by given index.
 hasValue :: HasCallStack => BaseType -> Dictionary -> Bool
 hasValue !ix d = DictionaryUnit.hasLeaf (dictionaryUnits d UV.! fromIntegral ix)
 {-# INLINE hasValue #-}
 
+-- | Gets a value of dictionary unit by given index.
 value :: HasCallStack => BaseType -> Dictionary -> ValueType
 value !ix d = DictionaryUnit.value (dictionaryUnits d UV.! fromIntegral oix)
   where
     !oix = ix .^. DictionaryUnit.offset (dictionaryUnits d UV.! fromIntegral ix)
 {-# INLINE value #-}
 
+-- | Load dictionary from a file.
 read :: HasCallStack => FilePath -> IO Dictionary
 read = Binary.decodeFile
 
+-- | Save dictionary to a file.
 write :: HasCallStack => FilePath -> Dictionary -> IO ()
 write = Binary.encodeFile
 
+-- | Checks that the word contains in the dictionary.
 contains :: HasCallStack => String -> Dictionary -> Bool
 contains !key d =
   case follow key root d of
@@ -64,6 +70,9 @@ contains !key d =
     Just ix -> hasValue ix d
 {-# INLINE contains #-}
 
+-- | Similarly to 'contains' it checks that the word prefix
+-- (provided as word and separate length)
+-- contains in the dictionary. 
 containsPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Bool
 containsPrefixLength !k !l d =
   case followPrefixLength k l root d of
@@ -71,6 +80,11 @@ containsPrefixLength !k !l d =
     Just ix -> hasValue ix d
 {-# INLINE containsPrefixLength #-}
 
+-- | Performs lookup and retrieves value associated with the word
+-- if it is present in the dictionary.
+--
+-- If the word is contained in the dictionary but there is no value associated with it,
+-- @Just 0@ will be returned.
 lookup :: HasCallStack => String -> Dictionary -> Maybe ValueType
 lookup !k d =
   case follow k root d of
@@ -78,6 +92,13 @@ lookup !k d =
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
 {-# INLINE lookup #-}
 
+-- | Similarlty to 'lookup', it performs lookup of the word prefix
+-- (provided as word and separate length)
+-- and retrieves value associated with the word
+-- if it is present in the dictionary.
+--
+-- If the word is contained in the dictionary but there is no value associated with it,
+-- @Just 0@ will be returned.
 lookupPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Maybe ValueType
 lookupPrefixLength !k !l d =
   case followPrefixLength k l root d of
@@ -85,6 +106,7 @@ lookupPrefixLength !k !l d =
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
 {-# INLINE lookupPrefixLength #-}
 
+-- | Follows the character by dictionary index. If there is a child unit, returns its index.
 followChar :: HasCallStack => CharType -> BaseType -> Dictionary -> Maybe BaseType
 followChar !l !ix d =
   let !u = dictionaryUnits d UV.! fromIntegral ix
@@ -104,6 +126,9 @@ followChar !l !ix d =
         if DictionaryUnit.label nu /= fromIntegral l then Nothing else Just nextIx
 {-# INLINE followChar #-}
 
+-- | Recursively follows the word starting from its beginning.
+-- If at any point there is no index while following is not finished, returns 'Nothing'.
+-- Otherwise, returns a dictionary index associated with a last word character.
 follow :: HasCallStack => String -> BaseType -> Dictionary -> Maybe BaseType
 follow [] !ix _d = Just ix
 follow (!c : !cs) !ix d = if ord c == fromIntegral (ord '\0')
@@ -113,6 +138,7 @@ follow (!c : !cs) !ix d = if ord c == fromIntegral (ord '\0')
          Just !nextIx -> follow cs nextIx d
 {-# INLINE follow #-}
 
+-- | Same as 'follow' but for word prefix.
 followPrefixLength
   :: HasCallStack => String -> SizeType -> BaseType -> Dictionary -> Maybe BaseType
 followPrefixLength !cs !l !ix d =
@@ -127,6 +153,7 @@ followPrefixLength !cs !l !ix d =
     in follow' ix [0 .. pred l]
 {-# INLINE followPrefixLength #-}
 
+-- | Dump dictionary to stdout.
 dump :: HasCallStack => Dictionary -> IO ()
 dump d = do
   putStrLn "dictionary"

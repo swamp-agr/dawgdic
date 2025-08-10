@@ -1,3 +1,10 @@
+{-|
+Module: Data.Primitive.PrimArray.Combinators
+Description: Exports combinators used in mutable builders.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 module Data.Primitive.PrimArray.Combinators where
 
 import Control.Monad.Primitive (PrimMonad, PrimState)
@@ -20,6 +27,7 @@ type IntArray s = A.MutablePrimArray s Int
 (<~~) :: (MVector v a, PrimMonad m, HasCallStack) => v (PrimState m) a -> BaseType -> a -> m ()
 (<~~) xs !i x = V.write xs (fromIntegral i) x
 
+-- | Infix version of @modify@. Modifies element at the given position.
 (!<~~) :: (MVector v a, PrimMonad m, HasCallStack) => v (PrimState m) a -> BaseType -> (a -> a) -> m ()
 (!<~~) xs !i f = do
   !x <- xs !~ i

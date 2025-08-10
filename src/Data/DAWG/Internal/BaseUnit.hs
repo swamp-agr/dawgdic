@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.BaseUnit
+Description: Exports base unit used in dawg.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE TypeFamilies #-}
 module Data.DAWG.Internal.BaseUnit where
 
@@ -15,7 +22,8 @@ import qualified Data.Vector.Unboxed as UV
 
 -- ** Base Unit
 
-newtype BaseUnit = BaseUnit { unBaseUnit :: BaseType }
+-- | Base unit. Used as a base for DAWG and DAWG builder.
+newtype BaseUnit = BaseUnit { base :: BaseType }
   deriving newtype (Eq, Prim, Read, Binary)
 
 instance Show BaseUnit where
@@ -44,26 +52,27 @@ instance Hashable BaseUnit where
   hashWithSalt s u = hash s .^. hash u
   {-# INLINE hashWithSalt #-}
 
+-- | Empty base unit. Equivalent to @0@.
 empty :: BaseUnit
 empty = BaseUnit 0
 {-# INLINE empty #-}
 
-base :: BaseUnit -> BaseType
-base = unBaseUnit
-{-# INLINE base #-}
-
+-- | Gets a child unit or @0@.
 child :: BaseUnit -> BaseType
 child u = base u .>>. 2
 {-# INLINE child #-}
 
+-- | Checks whether base unit has a sibling or not.
 hasSibling :: BaseUnit -> Bool
 hasSibling u = (base u .&. 1) /= 0
 {-# INLINE hasSibling #-}
 
+-- | Gets a value associated with a base unit or @0@.
 value :: BaseUnit -> ValueType
 value u = fromIntegral $! base u .>>. 1
 {-# INLINE value #-}
 
+-- | Checks whether base unit is a state or not.
 isState :: BaseUnit -> Bool
 isState !u = (base u .&. 2) /= 0
 {-# INLINE isState #-}
