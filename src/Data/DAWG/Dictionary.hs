@@ -6,10 +6,19 @@ License: BSD-3-Clause
 Stability: experimental
 -}
 module Data.DAWG.Dictionary
-  ( Dictionary(..)
+  ( -- * Dictionary
+    -- $doc
+    Dictionary(..)
+
+    -- ** Building
+    -- $usage
+
   , build
   , build'
   , freeze
+
+    -- ** Basic operations
+
   , root
   , hasValue
   , value
@@ -20,6 +29,9 @@ module Data.DAWG.Dictionary
   , followChar
   , follow
   , followPrefixLength
+
+    -- ** Loading and saving
+
   , read
   , write
   ) where
@@ -41,3 +53,25 @@ import Data.DAWG.Internal.Dictionary
   , write
   )
 import Prelude hiding (read, lookup)
+
+-- $doc
+--
+-- This module offers Dictionary.
+
+-- $usage
+--
+-- Dictionary could be built from 'Data.DAWG.DAWG.DAWG':
+--
+-- >>> dict <- build' dawg
+--
+-- If build failed, error will be raised.
+-- Alternatively, use combination of 'build' and 'freeze'.
+--
+-- Once dictionary is ready it could be saved locally:
+--
+-- >>> write "myDictionary.dawg" dict
+--
+-- And later loaded back:
+--
+-- >>> dict <- read "myDictionary.dawg"
+--
