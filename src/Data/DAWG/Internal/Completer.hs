@@ -154,7 +154,24 @@ value c = Dict.value (completerLastIndex c) (completerDictionary c)
 {-# INLINE value #-}
 
 -- | Retrieve all completion results by given @prefix@
--- from 'Dictionary' via associated 'Guide'.
+-- from 'Dictionary' via associated 'Guide'. Consider following lexicon:
+--
+-- @
+--   a
+--   an
+--   and
+--   appear
+--   apple
+--   bin
+--   can
+--   cat
+-- @
+--
+-- Once dictionary and guide are ready, call 'completeKeys':
+--
+-- >>> completeKeys "a" dict guide
+-- ["a", "an", "and", "appear", "apple"]
+--
 completeKeys :: String -> Dictionary -> Guide -> [String]
 completeKeys prefix dict guide = 
   let !c = new dict guide
