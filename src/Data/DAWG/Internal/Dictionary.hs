@@ -83,8 +83,9 @@ containsPrefixLength !k !l d =
 -- | Performs lookup and retrieves value associated with the word
 -- if it is present in the dictionary.
 --
--- If the word is contained in the dictionary but there is no value associated with it,
+-- * If the word is contained in the dictionary but there is no value associated with it,
 -- @Just 0@ will be returned.
+-- * Otherwise, returns 'Nothing' if there is no such word in the dictionary.
 lookup :: HasCallStack => String -> Dictionary -> Maybe ValueType
 lookup !k d =
   case follow k root d of
@@ -106,7 +107,9 @@ lookupPrefixLength !k !l d =
     Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
 {-# INLINE lookupPrefixLength #-}
 
--- | Follows the character by dictionary index. If there is a child unit, returns its index.
+-- | Follows the character by dictionary index of the previous character.
+-- If there is a child unit, returns its index.
+--
 followChar :: HasCallStack => CharType -> BaseType -> Dictionary -> Maybe BaseType
 followChar !l !ix d =
   let !u = dictionaryUnits d UV.! fromIntegral ix

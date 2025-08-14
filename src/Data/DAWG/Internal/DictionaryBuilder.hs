@@ -93,7 +93,8 @@ blockSize :: BaseType
 blockSize = 256
 {-# INLINE blockSize #-}
 
--- | Build dictionary o
+-- | Build dictionary from 'Data.DAWG.Internal.DAWG.DAWG'.
+-- If build failed, it returns 'Nothing'.
 build
   :: HasCallStack
   => PrimMonad m

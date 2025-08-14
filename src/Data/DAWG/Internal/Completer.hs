@@ -38,29 +38,20 @@ data Completer = Completer
   , completerLastIndex :: BaseType
   }
 
--- | Initalises a new 'Completer'.
-new :: Dictionary -> Guide -> Completer
-new dict guide = Completer
-  { completerDictionary = dict
-  , completerGuide = guide
-  , completerKey = Vector.empty
-  , completerIndexStack = EndOfStack
-  , completerLastIndex = 0
-  }
-{-# INLINE new #-}
-
 -- | Starts completion process for 'Completer' with a 'Dictionary' index and word prefix. For basic usage pass @0@ (dictionary 'Data.DAWG.Internal.Dictionary.root' index) as index.
 -- For more complex scenarios different 'Dictionary' indexes could be used here too.
-start :: HasCallStack => BaseType -> String -> Completer -> Completer
-start !ix !prefix !c =
+start :: HasCallStack => BaseType -> String -> Dictionary -> Guide -> Completer
+start !ix !prefix !dict !guide  =
 #ifdef trace
   unsafePerformIO do
     traceIO $ concat [ "-completer:start ix ", show ix, " prefix ", prefix, " l ", show $ length prefix ]
     pure $!
 #endif
-      let !gsize = guideSize $ completerGuide c
-          !nc = c
-           { completerKey = Vector.fromList
+      let !gsize = guideSize $ completerGuide nc
+          !nc = Completer
+           { completerDictionary = dict
+           , completerGuide = guide
+           , completerKey = Vector.fromList
              $ (fromIntegral @Int @UCharType . ord) <$> (prefix <> [chr 0])
            , completerIndexStack = if gsize /= 0 then Elem ix EndOfStack else EndOfStack
            , completerLastIndex = if gsize /= 0
@@ -174,13 +165,12 @@ value c = Dict.value (completerLastIndex c) (completerDictionary c)
 --
 completeKeys :: String -> Dictionary -> Guide -> [String]
 completeKeys prefix dict guide = 
-  let !c = new dict guide
-      goDict acc !dictIx = 
+  let goDict acc !dictIx =
         let !l = fromIntegral $ length prefix
         in case Dict.followPrefixLength prefix l dictIx dict of
           Nothing -> acc
           Just nextDictIx ->
-            let !nc = start nextDictIx "" c
+            let !nc = start nextDictIx "" dict guide
                 !nacc = goNext acc nc
             in goDict nacc nextDictIx
       goNext acc comp = case next comp of

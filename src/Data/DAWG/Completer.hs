@@ -9,7 +9,6 @@ module Data.DAWG.Completer
   ( -- * Completer
     -- $usage
     Completer (..)
-  , new
   , start
   , next
   , keyToString
@@ -53,15 +52,13 @@ import Data.DAWG.Internal.Completer
 -- From now on it is possible to perform completion requests via 'completeKeys'.
 -- To get more control over completion, consider using 'Completer' directly.
 --
--- >>> let c = new dict guide
---
 -- Start completion for @"a"@. First, let's find the dictionary index to start with.
 --
 -- >>> let Just dictIndex = Dict.followPrefixLength "a" 1 Dict.root dict
 --
--- Begin completing. Prepare Completer to traverse the dictionary using guide.
+-- Begin completing. Prepare 'Completer' to traverse the dictionary using guide.
 --
--- >>> let c_started = start dictIndex "a" c
+-- >>> let c_started = start dictIndex "a" dict guide
 --
 -- Get next completion result
 --
