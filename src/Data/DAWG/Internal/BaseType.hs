@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.BaseType
+Description: Exports base types used across the library.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 module Data.DAWG.Internal.BaseType where
 
 import Control.Monad.Primitive (PrimState)
@@ -21,10 +28,7 @@ type CharType = Int8
 -- | 32-bit unsigned integer.
 type BaseType = Word32
 
-baseTypeSize :: SizeType
-baseTypeSize = 4
-{-# INLINE baseTypeSize #-}
-
+-- | 32-bit mix function. <http://web.archive.org/19991104155419/www.concentric.net/~Ttwang/tech/inthash.htm>
 hashBaseType :: BaseType -> Int
 hashBaseType u =
     let !k0 = (complement u) + (u .<<. 15)
@@ -39,12 +43,15 @@ hashBaseType u =
 -- | 32-bit integer.
 type ValueType = Int32
 
--- | 32 or 64-bit unsigned integer
+-- | 32 or 64-bit unsigned integer.
 type SizeType = Word
 
+-- | Alias for unboxed mutable vector.
 type ObjectPool = UVM.MVector
 
+-- | Alias for vector hashtable with unboxed keys and unboxed values.
 type UUHT m k v = HT.Dictionary (PrimState m) UV.MVector k UV.MVector v
 
+-- | Alias for vector hashtable with unboxed keys and unboxed nested 'UUHT' (with given keys and values) as values.
 type UHHT m k v = HT.Dictionary (PrimState m) UV.MVector k UM.MVector (UUHT m k v)
 

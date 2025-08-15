@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.Completer
+Description: Exports completer as well as its internal API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.Completer where
 
@@ -20,9 +27,9 @@ import System.IO.Unsafe
 import Data.DAWG.Trace
 #endif
 
-
 -- ** Completer
 
+-- | Use 'Completer' to perform completion requests by given word prefixes. It accumulates data during traversing dictionary via associated guide. Resulted completion could be accessed via 'keyToString' helper.
 data Completer = Completer
   { completerDictionary :: Dictionary
   , completerGuide :: Guide
@@ -31,26 +38,20 @@ data Completer = Completer
   , completerLastIndex :: BaseType
   }
 
-new :: Dictionary -> Guide -> Completer
-new dict guide = Completer
-  { completerDictionary = dict
-  , completerGuide = guide
-  , completerKey = Vector.empty
-  , completerIndexStack = EndOfStack
-  , completerLastIndex = 0
-  }
-{-# INLINE new #-}
-
-start :: HasCallStack => BaseType -> String -> Completer -> Completer
-start !ix !prefix !c =
+-- | Starts completion process for 'Completer' with a 'Dictionary' index and word prefix. For basic usage pass @0@ (dictionary 'Data.DAWG.Internal.Dictionary.root' index) as index.
+-- For more complex scenarios different 'Dictionary' indexes could be used here too.
+start :: HasCallStack => BaseType -> String -> Dictionary -> Guide -> Completer
+start !ix !prefix !dict !guide  =
 #ifdef trace
   unsafePerformIO do
     traceIO $ concat [ "-completer:start ix ", show ix, " prefix ", prefix, " l ", show $ length prefix ]
     pure $!
 #endif
-      let !gsize = guideSize $ completerGuide c
-          !nc = c
-           { completerKey = Vector.fromList
+      let !gsize = guideSize $ completerGuide nc
+          !nc = Completer
+           { completerDictionary = dict
+           , completerGuide = guide
+           , completerKey = Vector.fromList
              $ (fromIntegral @Int @UCharType . ord) <$> (prefix <> [chr 0])
            , completerIndexStack = if gsize /= 0 then Elem ix EndOfStack else EndOfStack
            , completerLastIndex = if gsize /= 0
@@ -60,6 +61,8 @@ start !ix !prefix !c =
       in nc
 {-# INLINE start #-}
 
+-- | Retrieves next completion.
+-- If present, 'Completer' will be returned. 'Nothing', otherwise.
 next :: HasCallStack => Completer -> Maybe Completer
 next !c =
   let withNonEmptyStack comp action = case completerIndexStack comp of
@@ -126,6 +129,63 @@ next !c =
   in withNonEmptyStack c nextByIx
 {-# INLINE next #-}
 
+-- | Retrieves a completion result from 'Completer' as 'String'.
+keyToString :: HasCallStack => Completer -> String
+keyToString = fmap (chr . fromIntegral) . safeInit . Vector.toList . completerKey
+  where
+    safeInit [] = []
+    safeInit xs = init xs
+    {-# INLINE safeInit #-}
+{-# INLINE keyToString #-}
+    
+-- | Retrieves a value associated
+-- with the last visited index by 'Completer' from the 'Dictionary'.
+value :: HasCallStack => Completer -> ValueType
+value c = Dict.value (completerLastIndex c) (completerDictionary c)
+{-# INLINE value #-}
+
+-- | Retrieve all completion results by given @prefix@
+-- from 'Dictionary' via associated 'Guide'. Consider following lexicon:
+--
+-- @
+--   a
+--   an
+--   and
+--   appear
+--   apple
+--   bin
+--   can
+--   cat
+-- @
+--
+-- Once dictionary and guide are ready, call 'completeKeys':
+--
+-- >>> completeKeys "a" dict guide
+-- ["a", "an", "and", "appear", "apple"]
+--
+completeKeys :: String -> Dictionary -> Guide -> [String]
+completeKeys prefix dict guide = 
+  let goDict acc !dictIx =
+        let !l = fromIntegral $ length prefix
+        in case Dict.followPrefixLength prefix l dictIx dict of
+          Nothing -> acc
+          Just nextDictIx ->
+            let !nc = start nextDictIx "" dict guide
+                !nacc = goNext acc nc
+            in goDict nacc nextDictIx
+      goNext acc comp = case next comp of
+        Nothing -> acc
+        Just !nc ->
+          let !nextWord = concat [prefix, keyToString nc]
+          in goNext (nextWord : acc) nc
+  in reverse $ goDict [] Dict.root
+{-# INLINE completeKeys #-}
+
+-- ** Helpers
+
+-- | Helper function that is being used in 'next'.
+-- Follows a given char within the 'Dictionary'
+-- and performs necessary transformations to 'Completer'.
 follow :: HasCallStack => CharType -> BaseType -> Completer -> Maybe (BaseType, Completer)
 follow !label !ix !c =
   case Dict.followChar label ix (completerDictionary c) of
@@ -144,6 +204,8 @@ follow !label !ix !c =
       in Just (nextIx, nc)
 {-# INLINE follow #-}
 
+-- | Helper function to identify the terminal occurence.
+-- Returns 'Completer' if there was an occurence. 'Nothing', otherwise.
 findTerminal :: HasCallStack => BaseType -> Completer -> Maybe Completer
 findTerminal !ix !c
   | Dict.hasValue ix (completerDictionary c) =
@@ -167,44 +229,15 @@ findTerminal !ix !c
                          , completerIndexStack = Elem nextIx oldStack
                          }
              in findTerminal nextIx nc
-{-# INLINE findTerminal #-}
 
-keyToString :: HasCallStack => Vector UCharType -> String
-keyToString = fmap (chr . fromIntegral) . safeInit . Vector.toList
-  where
-    safeInit [] = []
-    safeInit xs = init xs
-    {-# INLINE safeInit #-}
-{-# INLINE keyToString #-}
-    
-value :: HasCallStack => Completer -> ValueType
-value c = Dict.value (completerLastIndex c) (completerDictionary c)
-{-# INLINE value #-}
-
+-- | Dump completer state to stdout.
 dump :: HasCallStack => String -> Completer -> IO ()
 dump prefix Completer{..} = do
   let msg = unlines $ fmap ((prefix <> " ") <>)
         [ "ksize " <> (show $ length $ completerKey) <> " " <> show completerKey
-        , "issize " <> (show $ size $ completerIndexStack) <> " " <> show completerIndexStack
+        , concat
+            ["issize ", (show $ size $ completerIndexStack), " ", show completerIndexStack]
         , "lastIx " <> show completerLastIndex
         ]
   putStrLn msg
 
-completeKeys :: String -> Dictionary -> Guide -> [String]
-completeKeys prefix dict guide = 
-  let !c = new dict guide
-      goDict acc !dictIx = 
-        let !l = fromIntegral $ length prefix
-        in case Dict.followPrefixLength prefix l dictIx dict of
-          Nothing -> acc
-          Just nextDictIx ->
-            let !nc = start nextDictIx "" c
-                !nacc = goNext acc nc
-            in goDict nacc nextDictIx
-      goNext acc comp = case next comp of
-        Nothing -> acc
-        Just !nc ->
-          let !nextWord = concat [prefix, keyToString $ completerKey nc]
-          in goNext (nextWord : acc) nc
-  in reverse $ goDict [] Dict.root
-{-# INLINE completeKeys #-}

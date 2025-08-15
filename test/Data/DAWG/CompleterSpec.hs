@@ -3,7 +3,7 @@ module Data.DAWG.CompleterSpec where
 
 import Data.DAWG.Internal.BaseType
 
-import Data.DAWG.Completer (Completer(..), keyToString, new, start, next)
+import Data.DAWG.Completer (Completer(..), keyToString, start, next)
 
 import qualified Data.DAWG.Completer as C
 import qualified Data.DAWG.Guide as G
@@ -50,21 +50,20 @@ spec = do
             Nothing -> pure ()
             Just !nc -> do
               appendFile "completer-debug.txt" $ concat
-                [ "key = ", w, show $ completerKey nc, ": ", keyToString $ completerKey nc, "\n" ]
+                [ "key = ", w, show $ completerKey nc, ": ", keyToString nc, "\n" ]
               appendFile completerResultFile $ concat
-                [ " ", w, keyToString $ completerKey nc, " = ", show $ C.value nc ]
+                [ " ", w, keyToString nc, " = ", show $ C.value nc ]
               goNext w nc
 
           go :: BaseType -> String -> String -> Dict.Dictionary -> G.Guide -> IO ()
           go _dictIx _fullWord [] _dict _guide = pure ()
           go dictIx fw w d g = do
-            let c = new d g
             appendFile "completer-debug.txt" $ w <> "\n"
             case Dict.followPrefixLength w (fromIntegral $ length w) dictIx d of
               Nothing -> pure ()
               Just nextDictIx -> do
                 appendFile "completer-debug" $ "ix " <> show nextDictIx <> "n"
-                let !nc = start nextDictIx "" c
+                let !nc = start nextDictIx "" d g
                 goNext fw nc
                 go nextDictIx fw w d g
 

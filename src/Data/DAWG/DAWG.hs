@@ -1,10 +1,24 @@
+{-|
+Module: Data.DAWG.DAWG
+Description: Exports DAWG API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 module Data.DAWG.DAWG
-  ( DAWG(..)
+  ( -- * DAWG
+    -- $doc
+    DAWG(..)
+
+    -- ** Building DAWG
+    -- $usage
+
   , new
   , insert
   , insertWithLength
   , freeze
   , fromAscList
+  -- ** Helpers
   , root
   , empty
   , child
@@ -18,3 +32,28 @@ module Data.DAWG.DAWG
 
 import Data.DAWG.Internal.DAWGBuilder (new, insert, insertWithLength, freeze, fromAscList)
 import Data.DAWG.Internal.DAWG
+
+-- $doc
+--
+-- This module offers DAWG.
+
+-- $usage
+--
+-- To build DAWG from sorted list of words, ignoring all words that could not be inserted due to cycles, e.g. "banana", use 'fromAscList':
+--
+-- >>> import Data.DAWG.DAWG
+-- >>> import qualified Data.Vector as Vector
+-- >>> dawg <- fromAscList . Vector.fromList . lines =<< readFile "/path/to/lexicon"
+-- >>>
+--
+-- To get more control over inserting (i.e. inspecting insertion results), use following sequence:
+--
+-- >>> dawgBuilder <- new
+-- >>>
+-- >>> :{
+--   forM_ content \(word, value) -> do
+--     result <- insert word (Just value) dawgBuilder
+--     unless result $ error "Insert failed"
+-- >>>  :}
+-- >>> dawg <- freeze dawgBuilder
+-- >>>

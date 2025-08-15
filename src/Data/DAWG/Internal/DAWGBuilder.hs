@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.DAWGBuilder
+Description: Exports dawg builder as well as its internal API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.DAWGBuilder where
 
@@ -35,33 +42,37 @@ import Data.DAWG.Trace
 
 -- ** DAWG Builder
 
-newtype DAWGBuilder m = DBRef { unDBRef :: MutVar (PrimState m) (DAWGBuilder_ m) }
+-- | A mutable builder of 'Data.DAWG.Internal.DAWG.DAWG'.
+newtype DAWGBuilder m = DBRef { getDBRef :: MutVar (PrimState m) (DAWGBuilder_ m) }
 
+-- | Builder of DAWG. Do not access directly. Use 'DAWGBuilder' instead.
 data DAWGBuilder_ m = DAWGBuilder
-  { dawgBuilderBasePool :: ObjectPool (PrimState m) BaseUnit
-  , dawgBuilderLabelPool :: ObjectPool (PrimState m) UCharType
-  , dawgBuilderFlagPool :: ObjectPool (PrimState m) Bit
-  , dawgBuilderUnitPool :: ObjectPool (PrimState m) DAWGUnit
-  , dawgBuilderHashTable :: UUHT m BaseType BaseType
-  , dawgBuilderUnfixedUnits :: Stack (PrimState m) BaseType
-  , dawgBuilderUnusedUnits :: Stack (PrimState m) BaseType
-  , dawgBuilderRefs :: !(IntArray (PrimState m))
+  { dawgBuilderBasePool :: ObjectPool (PrimState m) BaseUnit -- ^ Pool of base units.
+  , dawgBuilderLabelPool :: ObjectPool (PrimState m) UCharType -- ^ Pool of labels.
+  , dawgBuilderFlagPool :: ObjectPool (PrimState m) Bit -- ^ Pool of bit flags to store merges.
+  , dawgBuilderUnitPool :: ObjectPool (PrimState m) DAWGUnit -- ^ Pool of dawg units.
+  , dawgBuilderHashTable :: UUHT m BaseType BaseType -- ^ Supportive hashtable to store links between units and transitions.
+  , dawgBuilderUnfixedUnits :: Stack (PrimState m) BaseType -- ^ Supportive stack to keep track of for unfixed units.
+  , dawgBuilderUnusedUnits :: Stack (PrimState m) BaseType -- ^ Supportive stack to keep track of unused units
+  , dawgBuilderRefs :: !(IntArray (PrimState m)) -- ^ Array which holds a few numbers: 'numOfStates', 'numOfMergedTransitions', 'numOfMergingStates'.
   }
 
-type DawgBuilderM m =
-  ( PrimMonad m
-  -- , MVector ObjectPool DAWGUnit
-  )
-
 numOfStates, numOfMergedTransitions, numOfMergingStates :: Int
+
+-- | Use it as index for 'dawgBuilderRefs' to get number of states.
 numOfStates = 0
 {-# INLINE numOfStates #-}
+
+-- | Use it as index for 'dawgBuilderRefs' to get number of merged transitions.
 numOfMergedTransitions = 1
 {-# INLINE numOfMergedTransitions #-}
+
+-- | Use it as index for 'dawgBuilderRefs' to get number of merging states.
 numOfMergingStates = 2
 {-# INLINE numOfMergingStates #-}
 
-new :: DawgBuilderM m => m (DAWGBuilder m)
+-- | Creates a new empty 'DAWGBuilder'. 
+new :: PrimMonad m => m (DAWGBuilder m)
 new = do
   dawgBuilderHashTable <- HT.initialize 0
   dawgBuilderBasePool <- V.new 0 
@@ -73,30 +84,33 @@ new = do
   dawgBuilderRefs <- A.replicate 3 0
   dawgBuilderRefs <~ numOfStates $ 1
   let db = DAWGBuilder{..}
-  unDBRef <- newMutVar db
+  getDBRef <- newMutVar db
   pure DBRef {..}  
 {-# INLINE new #-}
 
--- | Initializes an object.
+-- | Initializes empty 'DAWGBuilder' with the root index and the beginning of the word.
 init
-  :: DawgBuilderM m
+  :: PrimMonad m
   => DAWGBuilder m -> m ()
 init dbref = do
   do
-    !db <- readMutVar (unDBRef dbref)
+    !db <- readMutVar (getDBRef dbref)
     let initHtSize = 1 .<<. 8
     resize (dawgBuilderHashTable db) initHtSize
 
   !_ <- allocateUnit dbref
   !_ <- allocateTransition dbref
-  db <- readMutVar (unDBRef dbref)
+  db <- readMutVar (getDBRef dbref)
   dawgBuilderUnitPool db <~~ 0 $ DawgUnit.setLabel DawgUnit.empty 0xFF
   push 0 (dawgBuilderUnfixedUnits db)
 {-# INLINE init #-}
 
+-- | Inserts a word with optional value associated to it into 'DAWGBuilder'.
+-- Pass 'Nothing' as value if there is no value associated with the word.
+-- Returns 'False' if word was not inserted.
 insert
   :: HasCallStack
-  => DawgBuilderM m
+  => PrimMonad m
   => Vector Char
   -> Maybe ValueType
   -> DAWGBuilder m
@@ -111,9 +125,11 @@ insert ks mValue db = do
     else pure False
 {-# INLINE insert #-}
 
+-- | Like 'insertKey' but it also performs input validation.
+-- Returns 'False' if word was not inserted.
 insertWithLength
   :: HasCallStack
-  => DawgBuilderM m
+  => PrimMonad m
   => Vector Char
   -> Int
   -> ValueType
@@ -127,17 +143,20 @@ insertWithLength ks l v db =
     else pure False
 {-# INLINE insertWithLength #-}
 
+-- | Inserts a word (@key@) with its @length@ and associated @value@ into 'DAWGBuilder'.
+-- Pass @0@ if there is no value associated with the word.
+-- Returns 'False' if word was not inserted.
 insertKey
   :: HasCallStack
-  => DawgBuilderM m
-  => Vector Char -- ^ entire word as vector of keys
-  -> Int -- ^ Length of key
-  -> ValueType -- ^ Value
+  => PrimMonad m
+  => Vector Char -- ^ Entire word as vector of keys.
+  -> Int -- ^ Prefix length.
+  -> ValueType -- ^ Value.
   -> DAWGBuilder m
   -> m Bool
 insertKey ks l v dbref@DBRef{..} = do
   do
-    db <- readMutVar unDBRef
+    db <- readMutVar getDBRef
     htsize <- HT.size $ dawgBuilderHashTable db
     when (htsize == 0) $ init dbref
 
@@ -145,7 +164,7 @@ insertKey ks l v dbref@DBRef{..} = do
   let findSeparateUnit (!ix, !keyPos)
         | keyPos > fromIntegral l = pure $ Just (ix, keyPos)
         | otherwise = do
-            db <- readMutVar unDBRef
+            db <- readMutVar getDBRef
             !u0 <- dawgBuilderUnitPool db !~ ix
             let !childIx = DawgUnit.child u0
             if childIx == 0
@@ -178,7 +197,7 @@ insertKey ks l v dbref@DBRef{..} = do
         | otherwise = do
             let keyLabel = if keyPos < fromIntegral l then ks Vector.! keyPos else '\0'
             childIx <- allocateUnit dbref
-            ndb <- readMutVar unDBRef
+            ndb <- readMutVar getDBRef
             !u <- dawgBuilderUnitPool ndb !~ ix
             let setState !u' = if DawgUnit.child u == 0
                   then DawgUnit.setIsState u' True
@@ -198,7 +217,7 @@ insertKey ks l v dbref@DBRef{..} = do
     Nothing -> pure False
     Just (!ix, !keyPos) -> do
       (!lastIx, _) <- addNewUnit (ix, keyPos)
-      ndb <- readMutVar unDBRef
+      ndb <- readMutVar getDBRef
       lu <- dawgBuilderUnitPool ndb !~ lastIx
       dawgBuilderUnitPool ndb <~~ lastIx $ DawgUnit.setChild lu (fromIntegral v)
 
@@ -208,12 +227,14 @@ insertKey ks l v dbref@DBRef{..} = do
 #endif
       pure True
 
+-- | Generates 'Data.DAWG.Internal.DAWG.DAWG' out of 'DAWGBuilder'.
+-- Once this function is called, 'DAWGBuilder' must not be used anymore.
 freeze
   :: HasCallStack
-  => DawgBuilderM m => DAWGBuilder m -> m DAWG
+  => PrimMonad m => DAWGBuilder m -> m DAWG
 freeze dbref@DBRef{..} = do
   do
-    db0 <- readMutVar unDBRef
+    db0 <- readMutVar getDBRef
     htsize <- HT.size $ dawgBuilderHashTable db0
     when (htsize == 0) $ init dbref
 #ifdef trace
@@ -221,7 +242,7 @@ freeze dbref@DBRef{..} = do
 #endif
     fixUnits 0 dbref
 
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   unit0 <- dawgBuilderUnitPool db !~ 0
 #ifdef trace
   traceIO $ "freeze: u0 " <> show unit0
@@ -255,6 +276,7 @@ freeze dbref@DBRef{..} = do
     }
 {-# INLINE freeze #-}
 
+-- | Builds entire 'Data.DAWG.Internal.DAWG.DAWG' from a lexicon. Lexicon *must be* sorted.
 fromAscList :: HasCallStack => PrimMonad m => [String] -> m DAWG
 fromAscList lexicon = do
   db <- new
@@ -263,14 +285,16 @@ fromAscList lexicon = do
   freeze db
 {-# INLINE fromAscList #-}
 
+-- ** Helpers
+
 -- | Gets a unit from an object pool.
 allocateUnit
   :: HasCallStack
-  => DawgBuilderM m
+  => PrimMonad m
   => DAWGBuilder m -> m BaseType
 allocateUnit DBRef{..} = do
-  !db <- readMutVar unDBRef
-  (!index, !ndb) <- readMutVar (unStackRef $ dawgBuilderUnusedUnits db) >>= \case
+  !db <- readMutVar getDBRef
+  (!index, !ndb) <- readMutVar (getStackRef $ dawgBuilderUnusedUnits db) >>= \case
     -- no unused units left
     EndOfStack -> do
       newUnitPool <- V.grow (dawgBuilderUnitPool db) 1
@@ -279,16 +303,17 @@ allocateUnit DBRef{..} = do
       dawgBuilderUnitPool nextDb <~~ fromIntegral index $ DawgUnit.empty
       pure (fromIntegral index, nextDb)
     Elem !index !stack -> do
-      writeMutVar (unStackRef $ dawgBuilderUnusedUnits db) stack
+      writeMutVar (getStackRef $ dawgBuilderUnusedUnits db) stack
       pure (index, db)
-  writeMutVar unDBRef ndb
+  writeMutVar getDBRef ndb
   pure index
 
-freeUnit :: HasCallStack => DawgBuilderM m => DAWGBuilder_ m -> BaseType -> m ()
+-- | Adds free unit index to the stack of unused units.
+freeUnit :: HasCallStack => PrimMonad m => DAWGBuilder_ m -> BaseType -> m ()
 freeUnit db !ix = do
-  prevStack <- readMutVar (unStackRef $ dawgBuilderUnusedUnits db)
+  prevStack <- readMutVar (getStackRef $ dawgBuilderUnusedUnits db)
   let !stack = Elem ix prevStack
-  writeMutVar (unStackRef $ dawgBuilderUnusedUnits db) stack
+  writeMutVar (getStackRef $ dawgBuilderUnusedUnits db) stack
 {-# INLINE freeUnit #-}
 
 -- | Gets a transition from object pools.
@@ -296,7 +321,7 @@ allocateTransition
   :: HasCallStack
   => PrimMonad m => DAWGBuilder m -> m BaseType
 allocateTransition DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   newFlagPool <- V.grow (dawgBuilderFlagPool db) 1
   newFlagPool <~~ fromIntegral (V.length newFlagPool - 1) $ 0
 
@@ -312,17 +337,18 @@ allocateTransition DBRef{..} = do
         , dawgBuilderBasePool = newBasePool
         , dawgBuilderLabelPool = newLabelPool
         }
-  writeMutVar unDBRef ndb
+  writeMutVar getDBRef ndb
   pure (fromIntegral lastIx)
 
+-- | Recursively fix units starting from a given index.
 fixUnits
   :: HasCallStack
-  => DawgBuilderM m
+  => PrimMonad m
   => BaseType -> DAWGBuilder m -> m ()
 fixUnits !index dbref@DBRef{..} = do
   let countSiblings !acc 0 = pure acc
       countSiblings !(acc :: Int) !ix = do
-        db <- readMutVar unDBRef
+        db <- readMutVar getDBRef
         unit' <- dawgBuilderUnitPool db !~ ix
         countSiblings (succ acc) (DawgUnit.sibling unit')
 
@@ -336,7 +362,7 @@ fixUnits !index dbref@DBRef{..} = do
 
       goBaseLabel (0 :: BaseType) !tix = pure tix
       goBaseLabel !ix !tix = do
-        db <- readMutVar unDBRef
+        db <- readMutVar getDBRef
         !unit' <- dawgBuilderUnitPool db !~ ix
         let !nextIx = DawgUnit.sibling unit'
 
@@ -357,7 +383,7 @@ fixUnits !index dbref@DBRef{..} = do
           deleteFixedUnits db next
 
       goStack = do
-        db <- readMutVar unDBRef
+        db <- readMutVar getDBRef
         top (dawgBuilderUnfixedUnits db) >>= \case
           Nothing -> pure ()
           Just !unfixedIx -> do
@@ -404,7 +430,7 @@ fixUnits !index dbref@DBRef{..} = do
                     , " start tix ", show startTransitionIndex ]
 #endif
                   -- re-read from mutable variable
-                  ndb <- readMutVar unDBRef
+                  ndb <- readMutVar getDBRef
                   !transitionIndex <- goBaseLabel unfixedIx startTransitionIndex
 #ifdef trace
                   traceIO $ concat
@@ -418,7 +444,7 @@ fixUnits !index dbref@DBRef{..} = do
                   pure newMatchedIx
 
               -- Delete fixed units
-              ndb <- readMutVar unDBRef
+              ndb <- readMutVar getDBRef
               deleteFixedUnits ndb unfixedIx
 
               top (dawgBuilderUnfixedUnits ndb) >>= \case
@@ -434,22 +460,23 @@ fixUnits !index dbref@DBRef{..} = do
                   dawgBuilderUnitPool ndb !<~~ nextUnfixedIx
                     $! flip DawgUnit.setChild nextMatchedIx
 
-              writeMutVar unDBRef ndb
+              writeMutVar getDBRef ndb
               goStack
 
 #ifdef trace
   traceIO ("fixUnits ix " <> show index)
 #endif
   goStack
-  readMutVar unDBRef >>= \ldb -> do
+  readMutVar getDBRef >>= \ldb -> do
     pop (dawgBuilderUnfixedUnits ldb)
-    writeMutVar unDBRef ldb
+    writeMutVar getDBRef ldb
 
+-- | Expands supportive hash table by doubling its size.
 expandHashTable
-  :: DawgBuilderM m
+  :: PrimMonad m
   => DAWGBuilder m -> m ()
 expandHashTable dbref@DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   htsize <- HT.size $ dawgBuilderHashTable db
   let newSize = htsize .<<. 1
   resize (dawgBuilderHashTable db) newSize
@@ -469,11 +496,12 @@ expandHashTable dbref@DBRef{..} = do
 #endif
 {-# INLINE expandHashTable #-}
 
+-- | Finds suitable transition index.
 findTransition
-  :: DawgBuilderM m
+  :: PrimMonad m
   => BaseType -> DAWGBuilder m -> m BaseType
 findTransition !index dbref@DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   !htsize <- HT.size $ dawgBuilderHashTable db
   !unit' <- hashTransition index dbref
   let !startHashId = unit' `mod` fromIntegral htsize
@@ -493,11 +521,12 @@ findTransition !index dbref@DBRef{..} = do
   go startHashId
 {-# INLINE findTransition #-}
 
+-- | Finds suitable hash id as well as transition index for the given unit.
 findUnit
-  :: DawgBuilderM m
+  :: PrimMonad m
   => BaseType -> DAWGBuilder m -> m (BaseType, BaseType)
 findUnit !unitIndex dbref@DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   !htsize0 <- HT.size $ dawgBuilderHashTable db
   !unit' <- hashUnit unitIndex dbref
   let !hashId = unit' `mod` fromIntegral htsize0
@@ -533,11 +562,12 @@ findUnit !unitIndex dbref@DBRef{..} = do
   findInTable hashId
 {-# INLINE findUnit #-}
 
+-- | Checks whether unit index matches with transition index or not.
 areEqual
-  :: DawgBuilderM m
+  :: PrimMonad m
   => BaseType -> BaseType -> DAWGBuilder m -> m Bool
 areEqual !unitIndex !transitionIndex !DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   !startUnit <- dawgBuilderUnitPool db !~ unitIndex
   let !startIx = DawgUnit.sibling startUnit
 #ifdef trace
@@ -597,7 +627,7 @@ areEqual !unitIndex !transitionIndex !DBRef{..} = do
 -- | Calculates a hash value from a transition.
 hashTransition :: forall m. PrimMonad m => BaseType -> DAWGBuilder m -> m BaseType
 hashTransition !ix DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   let go !hv (0 :: BaseType) = pure hv
       go !hv !ix' = do
         !bu <- dawgBuilderBasePool db !~ ix'
@@ -614,10 +644,10 @@ hashTransition !ix DBRef{..} = do
 
 -- | Calculates a hash value from a unit.
 hashUnit
-  :: forall m. DawgBuilderM m
+  :: forall m. PrimMonad m
   => BaseType -> DAWGBuilder m -> m BaseType
 hashUnit !ix DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
 
   let go :: BaseType -> BaseType -> m BaseType
       go !hv 0 = pure hv
@@ -636,9 +666,10 @@ hashUnit !ix DBRef{..} = do
   go 0 (fromIntegral ix)
 {-# INLINE hashUnit #-}
 
+-- | Dump builder to stdout.
 dump :: DAWGBuilder IO -> IO ()
 dump DBRef{..} = do
-  db <- readMutVar unDBRef
+  db <- readMutVar getDBRef
   
   let !bs = V.length $ dawgBuilderBasePool db
       !ls = V.length $ dawgBuilderLabelPool db
@@ -656,7 +687,7 @@ dump DBRef{..} = do
       [ show b, "\t", show (chr $ fromIntegral l), " ", show l, "\t", show u
       ]
 
-  let topStr stack = readMutVar (unStackRef $ stack db) >>= \case
+  let topStr stack = readMutVar (getStackRef $ stack db) >>= \case
         EndOfStack -> pure ""
         Elem el _ -> pure $ show el
 
@@ -670,6 +701,13 @@ dump DBRef{..} = do
 
 -- ** HashTable helper
 
+-- | Resizes hashtable to a given size.
+--
+-- * If new size is lesser than the table one, it shrinks the table.
+-- * If new size is greater than the table one, it allocates empty units in the table to fit new size.
+-- * Otherwise, it does not do anything.
+--
+-- See it as an equivalent to @std::vector.resize()@.
 resize :: PrimMonad m => UUHT m BaseType BaseType -> Int -> m ()
 resize ht newSize = do
   !htsize <- HT.size ht

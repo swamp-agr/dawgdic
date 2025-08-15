@@ -6,7 +6,7 @@
 dictionaries implemented with directed acyclic word 
 graphs (DAWG).
 
-This is a ported version of [C++ dawgdic library](https://code.google.com/archive/p/dawgdic/).
+This is a ported version of [C++ dawgdic library](https://github.com/s-yata/dawgdic).
 
 ## Features
 
@@ -25,8 +25,6 @@ source-repository-package
 
 Add `dawgdic` dependency to your project and run `cabal build`.
 
-
-## Quick Start
 
 ## Building and Querying
 
