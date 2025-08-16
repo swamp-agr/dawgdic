@@ -34,7 +34,6 @@ import qualified Data.Primitive.PrimArray.Utils as A
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Generic.Mutable as V
-import qualified Data.Vector.Hashtables as HT
 
 #ifdef trace
 import Data.DAWG.Trace
@@ -51,7 +50,7 @@ data DAWGBuilder_ m = DAWGBuilder
   , dawgBuilderLabelPool :: ObjectPool (PrimState m) UCharType -- ^ Pool of labels.
   , dawgBuilderFlagPool :: ObjectPool (PrimState m) Bit -- ^ Pool of bit flags to store merges.
   , dawgBuilderUnitPool :: ObjectPool (PrimState m) DAWGUnit -- ^ Pool of dawg units.
-  , dawgBuilderHashTable :: UUHT m BaseType BaseType -- ^ Supportive hashtable to store links between units and transitions.
+  , dawgBuilderHashTable :: ObjectPool (PrimState m) BaseType -- ^ Supportive pool of hashes.
   , dawgBuilderUnfixedUnits :: Stack (PrimState m) BaseType -- ^ Supportive stack to keep track of for unfixed units.
   , dawgBuilderUnusedUnits :: Stack (PrimState m) BaseType -- ^ Supportive stack to keep track of unused units
   , dawgBuilderRefs :: !(IntArray (PrimState m)) -- ^ Array which holds a few numbers: 'numOfStates', 'numOfMergedTransitions', 'numOfMergingStates'.
@@ -74,7 +73,7 @@ numOfMergingStates = 2
 -- | Creates a new empty 'DAWGBuilder'. 
 new :: PrimMonad m => m (DAWGBuilder m)
 new = do
-  dawgBuilderHashTable <- HT.initialize 0
+  dawgBuilderHashTable <- V.new 0
   dawgBuilderBasePool <- V.new 0 
   dawgBuilderLabelPool <- V.new 0
   dawgBuilderFlagPool <- V.new 0
@@ -94,9 +93,8 @@ init
   => DAWGBuilder m -> m ()
 init dbref = do
   do
-    !db <- readMutVar (getDBRef dbref)
     let initHtSize = 1 .<<. 8
-    resize (dawgBuilderHashTable db) initHtSize
+    resize dbref initHtSize
 
   !_ <- allocateUnit dbref
   !_ <- allocateTransition dbref
@@ -157,7 +155,7 @@ insertKey
 insertKey ks l v dbref@DBRef{..} = do
   do
     db <- readMutVar getDBRef
-    htsize <- HT.size $ dawgBuilderHashTable db
+    let !htsize = V.length $ dawgBuilderHashTable db
     when (htsize == 0) $ init dbref
 
   -- Find separate unit
@@ -235,7 +233,7 @@ freeze
 freeze dbref@DBRef{..} = do
   do
     db0 <- readMutVar getDBRef
-    htsize <- HT.size $ dawgBuilderHashTable db0
+    let !htsize = V.length $ dawgBuilderHashTable db0
     when (htsize == 0) $ init dbref
 #ifdef trace
     traceIO "freeze"
@@ -395,8 +393,8 @@ fixUnits !index dbref@DBRef{..} = do
               pop (dawgBuilderUnfixedUnits db)
 
               numOfStates' <- dawgBuilderRefs db ! numOfStates
-              htsize <- HT.size $ dawgBuilderHashTable db
-              when (numOfStates' >= htsize - (htsize .>>. 1)) do
+              let !htsize = V.length $ dawgBuilderHashTable db
+              when (numOfStates' >= htsize - (htsize .>>. 2)) do
                 expandHashTable dbref
 
               numOfSiblings <- countSiblings 0 unfixedIx
@@ -438,7 +436,7 @@ fixUnits !index dbref@DBRef{..} = do
                     , " end tix ", show transitionIndex ]
 #endif
                   let newMatchedIx = succ transitionIndex
-                  HT.insert (dawgBuilderHashTable ndb) hashId newMatchedIx
+                  dawgBuilderHashTable ndb <~~ hashId $ newMatchedIx
                   prevStates <- dawgBuilderRefs ndb ! numOfStates
                   dawgBuilderRefs ndb <~ numOfStates $ prevStates + 1
                   pure newMatchedIx
@@ -476,11 +474,16 @@ expandHashTable
   :: PrimMonad m
   => DAWGBuilder m -> m ()
 expandHashTable dbref@DBRef{..} = do
-  db <- readMutVar getDBRef
-  htsize <- HT.size $ dawgBuilderHashTable db
-  let newSize = htsize .<<. 1
-  resize (dawgBuilderHashTable db) newSize
+  do
+    db0 <- readMutVar getDBRef
+    let !htsize = V.length $ dawgBuilderHashTable db0
+        !newSize = htsize .<<. 1
 
+    newHt <- V.replicate newSize 0
+    let !db1 = db0 { dawgBuilderHashTable = newHt }
+    writeMutVar getDBRef db1
+
+  db <- readMutVar getDBRef
   let go !ix !base'
         | ix == 0 = pure ()
         | otherwise = do
@@ -488,7 +491,7 @@ expandHashTable dbref@DBRef{..} = do
           when (label' == 0 || isState base') do
             let !bix = fromIntegral ix
             !hashId <- findTransition bix dbref
-            HT.insert (dawgBuilderHashTable db) hashId bix
+            dawgBuilderHashTable db <~~ fromIntegral hashId $ fromIntegral ix
 
   V.iforM_ (dawgBuilderBasePool db) go
 #ifdef trace
@@ -502,20 +505,19 @@ findTransition
   => BaseType -> DAWGBuilder m -> m BaseType
 findTransition !index dbref@DBRef{..} = do
   db <- readMutVar getDBRef
-  !htsize <- HT.size $ dawgBuilderHashTable db
+  let !htsize = V.length $ dawgBuilderHashTable db
   !unit' <- hashTransition index dbref
   let !startHashId = unit' `mod` fromIntegral htsize
 
       go !hid = do
-        mTransitionId <- HT.lookup (dawgBuilderHashTable db) hid
-        let transitionId = fromMaybe 0 mTransitionId
+        transitionId <- dawgBuilderHashTable db !~ hid
 #ifdef trace
         traceIO $ concat ["-findTransition ix ", show index, " hid ", show hid, " tid ", show transitionId]
 #endif
         if transitionId == 0
           then pure hid
           else do
-            !htsize' <- HT.size $ dawgBuilderHashTable db
+            let !htsize' = V.length $ dawgBuilderHashTable db
             go (succ hid `mod` fromIntegral htsize')
 
   go startHashId
@@ -527,14 +529,13 @@ findUnit
   => BaseType -> DAWGBuilder m -> m (BaseType, BaseType)
 findUnit !unitIndex dbref@DBRef{..} = do
   db <- readMutVar getDBRef
-  !htsize0 <- HT.size $ dawgBuilderHashTable db
+  let !htsize0 = V.length $ dawgBuilderHashTable db
   !unit' <- hashUnit unitIndex dbref
   let !hashId = unit' `mod` fromIntegral htsize0
 
       findInTable !hid = do
-        htsize <- HT.size $ dawgBuilderHashTable db
-        mTransitionId <- HT.lookup (dawgBuilderHashTable db) hid
-        let transitionId = fromMaybe 0 mTransitionId
+        let !htsize = V.length $ dawgBuilderHashTable db
+        transitionId <- dawgBuilderHashTable db !~ hid
 #ifdef trace
         traceIO $ concat
           ["-findUnit uix ", show unitIndex
@@ -693,7 +694,7 @@ dump DBRef{..} = do
 
   unfixed <- topStr dawgBuilderUnfixedUnits
   unused <- topStr dawgBuilderUnusedUnits
-  !htsize <- HT.size $ dawgBuilderHashTable db
+  let !htsize = V.length $ dawgBuilderHashTable db
 
   putStrLn $ "unfixed : " <> unfixed
   putStrLn $ "unused : " <> unused
@@ -701,25 +702,29 @@ dump DBRef{..} = do
 
 -- ** HashTable helper
 
--- | Resizes hashtable to a given size.
+-- | Resizes a vector to a given size.
 --
 -- * If new size is lesser than the table one, it shrinks the table.
--- * If new size is greater than the table one, it allocates empty units in the table to fit new size.
+-- * If new size is greater than the table one, it allocates empty units in the vector to fit new size.
 -- * Otherwise, it does not do anything.
 --
 -- See it as an equivalent to @std::vector.resize()@.
-resize :: PrimMonad m => UUHT m BaseType BaseType -> Int -> m ()
-resize ht newSize = do
-  !htsize <- HT.size ht
+resize :: PrimMonad m => DAWGBuilder m -> Int -> m ()
+resize DBRef{..} newSize = do
+  db <- readMutVar getDBRef
+  let !htsize = V.length $ dawgBuilderHashTable db
 #ifdef trace
   traceIO $ concat ["--resize old ", show htsize, " new ", show newSize]
 #endif
-  case compare htsize newSize of
+  newHt <- case compare htsize newSize of
     LT -> do
-      forM_ [htsize .. newSize - 1] \ix -> do
-        HT.insert ht (fromIntegral ix) 0
-    EQ -> pure ()
-    GT -> do
-      forM_ [newSize .. htsize - 1] \ix -> do
-        HT.delete ht (fromIntegral ix)
+      newHt <- V.grow (dawgBuilderHashTable db) (newSize - htsize)
+      forM_ [htsize .. pred newSize] \ix -> do
+        newHt <~~ fromIntegral ix $ 0
+      pure newHt
+    EQ -> pure (dawgBuilderHashTable db)
+    GT -> pure (V.unsafeSlice 0 newSize (dawgBuilderHashTable db))
+  let !ndb = db { dawgBuilderHashTable = newHt }
+  writeMutVar getDBRef ndb
 {-# INLINE resize #-}
+
