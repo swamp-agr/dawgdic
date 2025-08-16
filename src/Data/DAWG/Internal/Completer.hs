@@ -47,7 +47,7 @@ start !ix !prefix !dict !guide  =
     traceIO $ concat [ "-completer:start ix ", show ix, " prefix ", prefix, " l ", show $ length prefix ]
     pure $!
 #endif
-      let !gsize = guideSize $ completerGuide nc
+      let !gsize = guideSize guide
           !nc = Completer
            { completerDictionary = dict
            , completerGuide = guide
