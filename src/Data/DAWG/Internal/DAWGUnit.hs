@@ -23,11 +23,11 @@ import qualified Data.Vector.Unboxed as UV
 
 -- | Unit of a 'Data.DAWG.Internal.DAWGBuilder.DAWGBuilder'. Contains following information:
 --
--- * child;
--- * sibling;
--- * label;
--- * is state flag;
--- * has sibling flag.
+-- * child (4 bytes);
+-- * sibling (4 bytes);
+-- * label (0-255);
+-- * is state flag (0-1);
+-- * has sibling flag (0-1).
 --
 -- Constructed as unboxed tuple of all its properties.
 newtype DAWGUnit = DAWGUnit
