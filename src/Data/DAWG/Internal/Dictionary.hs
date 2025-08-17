@@ -32,6 +32,9 @@ import Data.DAWG.Trace
 -- ** Dictionary
 
 -- | Dictionary.
+--
+-- * Each unit is stored in 4 bytes.
+-- * Size is stored in unsigned int.
 data Dictionary = Dictionary
   { dictionaryUnits :: UV.Vector DictionaryUnit -- ^ Array of dictionary units.
   , dictionarySize :: SizeType -- ^ Size of the dictionary.

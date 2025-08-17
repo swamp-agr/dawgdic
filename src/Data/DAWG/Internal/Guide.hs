@@ -25,11 +25,15 @@ import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 
 -- ** Guide
 
--- | Guide. Together with Dictionary it provides efficient way
--- to look word prefixes up (completion requests).
+-- | Guide. Together with 'Data.DAWG.Internal.Dictionary.Dictionary'
+-- it provides efficient way to look word prefixes up (completion requests).
+--
+-- * Each unit is stored in 2 bytes.
+-- * Guide size is stored in unsigned int.
+--
 data Guide = Guide
-  { guideUnits :: Vector GuideUnit
-  , guideSize :: SizeType
+  { guideUnits :: Vector GuideUnit -- ^ Array of 'Data.DAWG.Internal.GuideUnit.GuideUnit'. Index is equal to 'Data.DAWG.Internal.Dictionary.Dictionary' index.
+  , guideSize :: SizeType -- ^ Size of array. Stored separately.
   } deriving (Generic, Binary, NFData)
 
 -- | Constructs an empty guide.

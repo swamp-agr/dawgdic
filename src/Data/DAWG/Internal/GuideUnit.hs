@@ -22,6 +22,9 @@ import qualified Data.Vector.Unboxed as UV
 
 -- | Unit of a 'Data.DAWG.Internal.Guide' or a 'Data.DAWG.Internal.GuideBuilder'.
 -- Contains an information about child character and sibling character.
+--
+-- * Input characters should be mapped in the 0-255 range.
+--
 newtype GuideUnit = GuideUnit
   { unGuideUnit
     :: ( UCharType -- child

@@ -25,7 +25,12 @@ import qualified Data.DAWG.Internal.BaseUnit as BU
 
 -- ** DAWG
 
--- | DAWG.
+-- | Represents directed acycclic word graph (DAWG), the core data type of this package.
+-- Could be built from the input lexicon (list of words).
+-- Mostly it is used to generate separate 'Data.DAWG.Internal.Dictionary.Dictionary'
+-- (for querying words and searching associated values)
+-- and 'Data.DAWG.Internal.Guide' (for faster completions).
+--
 data DAWG = DAWG
   { dawgBasePool :: BasePool -- ^ Pool of base units.
   , dawgLabelPool :: LabelPool -- ^ Pool of characters.
