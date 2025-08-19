@@ -73,7 +73,7 @@ Utilities/1000/Completer.completeKeys    82343.20
 | dawg-ord: Data.DAWG.Ord        | N/A    | N/A     | N/A      |
 | packed-dawg: Data.DAWG.Packed  | 15619  | 128491  | 1481671  |
 | dawgdic: Data.DAWG.Dictionary  | 3088   | 141328  | 1603600  |
-| dawgdic: Guide (w/ Dictionary) | 4640   | 212000  | 1674272  |
+| dawgdic: Guide (w/ Dictionary) | 4640   | 212000  | 2405408  |
 
 - features:
 
