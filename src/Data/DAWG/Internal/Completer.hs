@@ -240,4 +240,3 @@ dump prefix Completer{..} = do
         , "lastIx " <> show completerLastIndex
         ]
   putStrLn msg
-

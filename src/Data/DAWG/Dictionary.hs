@@ -24,6 +24,7 @@ module Data.DAWG.Dictionary
   , value
   , contains
   , containsPrefixLength
+  , member
   , lookup
   , lookupPrefixLength
   , followChar
@@ -44,6 +45,7 @@ import Data.DAWG.Internal.Dictionary
   , value
   , contains
   , containsPrefixLength
+  , member
   , lookup
   , lookupPrefixLength
   , followChar

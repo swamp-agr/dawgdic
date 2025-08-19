@@ -65,6 +65,11 @@ read = Binary.decodeFile
 write :: HasCallStack => FilePath -> Dictionary -> IO ()
 write = Binary.encodeFile
 
+-- | Alias for 'contains'.
+member :: HasCallStack => String -> Dictionary -> Bool
+member = contains
+{-# INLINE member #-}
+
 -- | Checks that the word contains in the dictionary.
 contains :: HasCallStack => String -> Dictionary -> Bool
 contains !key d =
