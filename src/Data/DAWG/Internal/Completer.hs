@@ -9,6 +9,8 @@ Stability: experimental
 module Data.DAWG.Internal.Completer where
 
 import Data.Char
+import Data.List (group, sort)
+import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Vector (Vector)
 import GHC.Stack (HasCallStack)
 
@@ -21,6 +23,7 @@ import qualified Data.Vector as Vector
 
 import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.Guide as Guide
+import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 
 #ifdef trace
 import System.IO.Unsafe
@@ -180,6 +183,66 @@ completeKeys prefix dict guide =
           in goNext (nextWord : acc) nc
   in reverse $ goDict [] Dict.root
 {-# INLINE completeKeys #-}
+
+completeLexicon
+  :: forall a. (Char -> Completer -> a)
+  -> Dictionary
+  -> Guide
+  -> [a]
+completeLexicon completerSelector dict guide =
+  let goDict dict' guide' !firstChar =
+        let prefix = chr $ fromIntegral firstChar
+        in case Dict.followChar (fromIntegral firstChar) 0 dict' of
+          Nothing -> []
+          Just !nextDictIx ->
+            let !nc = start nextDictIx "" dict' guide'
+            in goNext [] prefix nc
+
+      goNext acc prefix comp = case next comp of
+        Nothing -> acc
+        Just !nc ->
+          let !next' = completerSelector prefix nc
+              !nacc = next' : acc
+          in goNext nacc prefix nc
+
+      nonEmpty !u = u /= GuideUnit.empty
+      {-# INLINE nonEmpty #-}
+
+      joinVectors v =
+        let cs = Vector.map GuideUnit.child v
+            ss = Vector.map GuideUnit.sibling v
+            ts = cs Vector.++ ss
+        in Vector.filter (/= 0) ts
+      {-# INLINE joinVectors #-}
+
+  -- FIXME: optimise it even further
+  in concatMap (goDict dict guide)
+     . mapMaybe listToMaybe
+     . group
+     . sort
+     . Vector.toList
+     . joinVectors
+     . Vector.filter nonEmpty
+     $! (Guide.guideUnits guide)
+{-# INLINE completeLexicon #-}
+
+keys :: Dictionary -> Guide -> [String]
+keys dict guide =
+  let selectWord prefix comp = prefix : keyToString comp
+  in completeLexicon selectWord dict guide
+
+values :: Dictionary -> Guide -> [ValueType]
+values dict guide =
+  let selectValue _prefix = value
+  in completeLexicon selectValue dict guide
+
+toList :: Dictionary -> Guide -> [(String, ValueType)]
+toList dict guide =
+  let selectPair prefix comp =
+        let !k = prefix : keyToString comp
+            !v = value comp
+        in (k, v)
+  in completeLexicon selectPair dict guide
 
 -- ** Helpers
 

@@ -31,7 +31,7 @@ newtype GuideUnit = GuideUnit
        , UCharType -- sibling
        )
   }
-  deriving newtype (Show, Binary, NFData)
+  deriving newtype (Show, Eq, Ord, Binary, NFData)
 
 newtype instance UV.MVector s GuideUnit = MV_GuideUnit (UV.MVector s (UCharType, UCharType))
 newtype instance UV.Vector GuideUnit = V_GuideUnit (UV.Vector (UCharType, UCharType))

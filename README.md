@@ -81,17 +81,18 @@ Utilities/1000/Completer.completeKeys    82343.20
 | ---------------- | ------- | -------- | ------------ | ------- |
 | build from list  | +       | +        | +            | +       |
 | persistence      | +       | -        | +            | +       |
-| insert           | Dynamic | +        | -            | +       |
+| insert           | Dynamic | +        | -            | Builder |
 | delete key       | Dynamic | +        | -            | -       |
 | lookup index     | Static  | ~edges   | lookupPrefix | +       |
 | follow character | -       | +        | -            | +       |
 | lookup value     | +       | +        | -            | +       |
 | member           | ~index  | ~lookup  | +            | +       |
-| keys             | +       | +        | +            | -       |
-| values           | +       | +        | -            | -       |
-| assocs           | +       | +        | -            | -       |
+| keys             | +       | +        | +            | +       |
+| values           | +       | +        | -            | +       |
+| toList (assocs)  | +       | +        | -            | +       |
 | complete word    | ~submap | -        | ~toList      | +       |
 | fuzzy search     | -       | -        | -            | -       |
+| max size         | N/A     | N/A      | 2^22 nodes   | N/A     |
 
 
 ### How to reproduce:
