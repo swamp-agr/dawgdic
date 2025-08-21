@@ -14,6 +14,9 @@ module Data.DAWG.Completer
   , keyToString
   , value
   , completeKeys
+  , keys
+  , values
+  , toList
   ) where
 
 import Data.DAWG.Internal.Completer
