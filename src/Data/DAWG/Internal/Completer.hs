@@ -184,6 +184,8 @@ completeKeys prefix dict guide =
   in reverse $ goDict [] Dict.root
 {-# INLINE completeKeys #-}
 
+-- | Apply completer to entire lexicon, starting with a function
+-- that will handle dictionary traversal following the first character of the word.
 completeLexicon
   :: forall a. (Char -> Completer -> a)
   -> Dictionary
@@ -226,16 +228,23 @@ completeLexicon completerSelector dict guide =
      $! (Guide.guideUnits guide)
 {-# INLINE completeLexicon #-}
 
+-- | Traverses the entire DAWG, returns only words in no particular order.
 keys :: Dictionary -> Guide -> [String]
 keys dict guide =
   let selectWord prefix comp = prefix : keyToString comp
   in completeLexicon selectWord dict guide
 
+-- | Traverses the entire DAWG, returns only values associated with words.
+-- Considering the unboxed nature of dictionary units, if there is no value associated with
+-- a word, it returns @0@.
 values :: Dictionary -> Guide -> [ValueType]
 values dict guide =
   let selectValue _prefix = value
   in completeLexicon selectValue dict guide
 
+-- | Traverses the entire DAWG, returns list of pairs
+-- where key is a word and value is 32-bit integer.
+-- In absence of value, @0@ will be returned.
 toList :: Dictionary -> Guide -> [(String, ValueType)]
 toList dict guide =
   let selectPair prefix comp =
