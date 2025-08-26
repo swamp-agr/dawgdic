@@ -1,0 +1,16 @@
+packages: ., ..
+tests: true
+
+allow-newer: packed-dawg:base
+
+allow-newer: dawg-ord:containers
+
+source-repository-package
+  type: git
+  location: https://github.com/swamp-agr/dawg.git
+  tag: ef40734df2093d64250256e2f7882305667ad343
+
+source-repository-package
+  type: git
+  location: https://github.com/swamp-agr/dawg-ord.git
+  tag: fe36a24603500d74bba368e1f6eda18d8e802caf

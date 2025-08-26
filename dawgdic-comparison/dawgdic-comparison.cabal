@@ -1,0 +1,27 @@
+cabal-version:      3.14
+name:               dawgdic-comparison
+version:            0.1.0
+license:            BSD-3-Clause
+author:             Andrey Prokopenko
+maintainer:         persiantiger@yandex.ru
+category:           Data
+build-type:         Simple
+
+
+benchmark dawgdic-bench-comparison
+  type:                exitcode-stdio-1.0
+  import:              warnings
+  main-is:             Main.hs
+  ghc-options:         -O2 -rtsopts
+  build-depends:       base
+                     , binary
+                     , criterion
+                     , directory
+                     , vector
+                     -- dawgs
+                     , dawg
+                     , dawg-ord
+                     , dawgdic
+                     , packed-dawg
+
+  default-language:    Haskell2010

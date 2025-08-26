@@ -8,7 +8,7 @@ Stability: experimental
 {-# LANGUAGE BangPatterns #-}
 module Data.DAWG.Internal.LinkTable where
 
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Control.Monad.Primitive (PrimMonad)
 import Data.Maybe (fromMaybe)
 
@@ -25,7 +25,7 @@ type LinkTable m = UUHT m BaseType (BaseType, BaseType)
 -- | Allocates a table space with given size.
 init :: PrimMonad m => LinkTable m -> BaseType -> m ()
 init ht size = do
-  forM_ [0 .. size - 1] \ix -> do
+  when (size > 0) $ forM_ [0 .. size - 1] \ix -> do
     HT.insert ht (fromIntegral ix) (0, 0)
 {-# INLINE init #-}
 

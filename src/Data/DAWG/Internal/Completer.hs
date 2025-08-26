@@ -8,9 +8,8 @@ Stability: experimental
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.Completer where
 
+import Control.Monad (forM_, when)
 import Data.Char
-import Data.List (group, sort)
-import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Vector (Vector)
 import GHC.Stack (HasCallStack)
 
@@ -20,6 +19,7 @@ import Data.DAWG.Internal.Guide (Guide (..))
 import Data.DAWG.Internal.Stack
 
 import qualified Data.Vector as Vector
+import qualified Data.Vector.Mutable as VM
 
 import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.Guide as Guide
@@ -201,7 +201,7 @@ completeLexicon completerSelector dict guide =
             in goNext [] prefix nc
 
       goNext acc prefix comp = case next comp of
-        Nothing -> acc
+        Nothing -> reverse acc
         Just !nc ->
           let !next' = completerSelector prefix nc
               !nacc = next' : acc
@@ -217,11 +217,19 @@ completeLexicon completerSelector dict guide =
         in Vector.filter (/= 0) ts
       {-# INLINE joinVectors #-}
 
+      populate ks = do
+        v <- VM.replicate 256 False
+        forM_ ks \k -> when (k /= 0) do
+          VM.write v (fromIntegral k) True
+        return v
+      {-# INLINE populate #-}
+
   -- FIXME: optimise it even further
   in concatMap (goDict dict guide)
-     . mapMaybe listToMaybe
-     . group
-     . sort
+     . Vector.map fst
+     . Vector.filter snd
+     . Vector.indexed
+     . (\v -> Vector.create (populate v))
      . Vector.toList
      . joinVectors
      . Vector.filter nonEmpty
