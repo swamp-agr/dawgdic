@@ -95,6 +95,26 @@ Utilities/1000/Completer.completeKeys    82343.20
 ------------------------------------- ------------
 ```
 
+### How to reproduce:
+
+- Install `bench-show`:
+
+```
+cabal install bench-show --overwrite-policy=always
+```
+
+- Run and wait (it might take around `3m` to complete):
+
+```
+time cabal bench +RTS "-N4 -A64m -n4m -qb0" -RTS  --benchmark-options="--output bench.html --csv results.csv"
+```
+
+- Generate report:
+
+```
+bench-show --presentation=Solo report results.csv
+```
+
 ### Comparison
 
 ```
@@ -189,7 +209,7 @@ Benchmark                      default(μs)
 cabal install bench-show --overwrite-policy=always
 ```
 
-- Run and wait (it might take around `1h` to complete):
+- Run and wait (it might take around `7m` to complete):
 
 ```
 time cabal bench +RTS "-N4 -A64m -n4m -qb0" -RTS  --benchmark-options="--output bench.html --csv results.csv"
