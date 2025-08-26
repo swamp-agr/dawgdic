@@ -31,7 +31,17 @@ generateN fullLexiconPath n = do
   words' <- lines <$> readFile fullLexiconPath
   go (sort words') alphabet
 
--- | @fullLexiconPath@ should nbe the relative or absolute local path to the file @words_alpha.txt@
+-- | Helper function to generate @lexicon.<N>.v.txt@ from @lexicon.<N>.txt@. Use 'generateAllValues' instead. It will take a couple minutes to generate input for comparison benchmarks.
+generateValue :: FilePath -> Int -> IO ()
+generateValue lexiconPath n = do
+  contents <- lines <$> readFile lexiconPath
+  let size = length contents
+      values = reverse [1 .. size]
+      toLine (w, v) = concat [w, "\t", show v]
+      lexiconValPath = (<> ".v.txt") . reverse . drop 4 . reverse $ lexiconPath
+  writeFile lexiconValPath $ unlines (toLine <$> zip contents values)
+
+-- | @fullLexiconPath@ should be the relative or absolute local path to the file @words_alpha.txt@
 -- from <https://github.com/dwyl/english-words/tree/master>.
 -- Consider downloading and unpacking @words_alpha.zip@.
 generateAll fullLexiconPath = mapM_ (generateN fullLexiconPath) [10, 100, 1000]
