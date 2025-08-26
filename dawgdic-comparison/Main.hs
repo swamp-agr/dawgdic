@@ -350,15 +350,15 @@ makeCompleteWordGroup = generate completeWordBenchItem
 
 completeWordB dict guide ws =
   let f !w = C.completeKeys w dict guide
-  in nf (fmap f) ws
+  in nf (concatMap f) ws
 
 completeWordDawgB dawg ws =
   let f !w = D.keys $ D.submap w dawg
-  in nf (fmap f) ws
+  in nf (concatMap f) ws
 
 completeWordPackedDawgB dawg ws =
   let prepend !w !rest = concat [w, rest]
       f !w = case P.lookupPrefix w dawg of
         Nothing -> []
         Just node -> prepend w <$> P.toList node
-  in nf (fmap f) ws
+  in nf (concatMap f) ws

@@ -8,7 +8,6 @@ Stability: experimental
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.Completer where
 
-import Control.Monad (forM_, when)
 import Data.Char
 import Data.Vector (Vector)
 import GHC.Stack (HasCallStack)
@@ -19,11 +18,9 @@ import Data.DAWG.Internal.Guide (Guide (..))
 import Data.DAWG.Internal.Stack
 
 import qualified Data.Vector as Vector
-import qualified Data.Vector.Mutable as VM
 
 import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.Guide as Guide
-import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 
 #ifdef trace
 import System.IO.Unsafe
@@ -168,20 +165,21 @@ value c = Dict.value (completerLastIndex c) (completerDictionary c)
 --
 completeKeys :: String -> Dictionary -> Guide -> [String]
 completeKeys prefix dict guide = 
-  let goDict acc !dictIx =
-        let !l = fromIntegral $ length prefix
-        in case Dict.followPrefixLength prefix l dictIx dict of
+  let !l = fromIntegral $ length prefix
+      goDict acc !dictIx =
+        case Dict.followPrefixLength prefix l dictIx dict of
           Nothing -> acc
-          Just nextDictIx ->
+          Just !nextDictIx ->
             let !nc = start nextDictIx "" dict guide
                 !nacc = goNext acc nc
             in goDict nacc nextDictIx
-      goNext acc comp = case next comp of
+      goNext acc !comp = case next comp of
         Nothing -> acc
         Just !nc ->
           let !nextWord = concat [prefix, keyToString nc]
-          in goNext (nextWord : acc) nc
-  in reverse $ goDict [] Dict.root
+              !nacc = nextWord : acc
+          in goNext nacc nc
+  in goDict [] Dict.root
 {-# INLINE completeKeys #-}
 
 -- | Apply completer to entire lexicon, starting with a function
@@ -194,46 +192,21 @@ completeLexicon
 completeLexicon completerSelector dict guide =
   let goDict dict' guide' !firstChar =
         let prefix = chr $ fromIntegral firstChar
-        in case Dict.followChar (fromIntegral firstChar) 0 dict' of
+        in case Dict.followChar firstChar 0 dict' of
           Nothing -> []
           Just !nextDictIx ->
             let !nc = start nextDictIx "" dict' guide'
             in goNext [] prefix nc
 
       goNext acc prefix comp = case next comp of
-        Nothing -> reverse acc
+        Nothing -> acc
         Just !nc ->
           let !next' = completerSelector prefix nc
               !nacc = next' : acc
           in goNext nacc prefix nc
 
-      nonEmpty !u = u /= GuideUnit.empty
-      {-# INLINE nonEmpty #-}
-
-      joinVectors v =
-        let cs = Vector.map GuideUnit.child v
-            ss = Vector.map GuideUnit.sibling v
-            ts = cs Vector.++ ss
-        in Vector.filter (/= 0) ts
-      {-# INLINE joinVectors #-}
-
-      populate ks = do
-        v <- VM.replicate 256 False
-        forM_ ks \k -> when (k /= 0) do
-          VM.write v (fromIntegral k) True
-        return v
-      {-# INLINE populate #-}
-
   -- FIXME: optimise it even further
-  in concatMap (goDict dict guide)
-     . Vector.map fst
-     . Vector.filter snd
-     . Vector.indexed
-     . (\v -> Vector.create (populate v))
-     . Vector.toList
-     . joinVectors
-     . Vector.filter nonEmpty
-     $! (Guide.guideUnits guide)
+  in concatMap  (goDict dict guide) [(1 :: CharType) .. 127]
 {-# INLINE completeLexicon #-}
 
 -- | Traverses the entire DAWG, returns only words in no particular order.

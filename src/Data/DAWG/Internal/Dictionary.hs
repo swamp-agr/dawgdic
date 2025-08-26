@@ -85,7 +85,7 @@ containsPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Bool
 containsPrefixLength !k !l d =
   case followPrefixLength k l root d of
     Nothing -> False
-    Just ix -> hasValue ix d
+    Just !ix -> hasValue ix d
 {-# INLINE containsPrefixLength #-}
 
 -- | Performs lookup and retrieves value associated with the word
@@ -112,7 +112,7 @@ lookupPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Maybe 
 lookupPrefixLength !k !l d =
   case followPrefixLength k l root d of
     Nothing -> Nothing
-    Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
+    Just !ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
 {-# INLINE lookupPrefixLength #-}
 
 -- | Follows the character by dictionary index of the previous character.
@@ -120,8 +120,9 @@ lookupPrefixLength !k !l d =
 --
 followChar :: HasCallStack => CharType -> BaseType -> Dictionary -> Maybe BaseType
 followChar !l !ix d =
-  let !u = dictionaryUnits d UV.! fromIntegral ix
-      !nextIx = (ix .^. DictionaryUnit.offset u) .^. fromIntegral l
+  let !lb = fromIntegral l
+      !u = dictionaryUnits d UV.! fromIntegral ix
+      !nextIx = (ix .^. DictionaryUnit.offset u) .^. lb
       !nu = dictionaryUnits d UV.! fromIntegral nextIx
 #ifdef trace
       !debugStr = concat
@@ -134,7 +135,7 @@ followChar !l !ix d =
 #ifdef trace
       tracePure debugStr $
 #endif
-        if DictionaryUnit.label nu /= fromIntegral l then Nothing else Just nextIx
+        if DictionaryUnit.label nu /= lb then Nothing else Just nextIx
 {-# INLINE followChar #-}
 
 -- | Recursively follows the word starting from its beginning.
@@ -142,7 +143,7 @@ followChar !l !ix d =
 -- Otherwise, returns a dictionary index associated with a last word character.
 follow :: HasCallStack => String -> BaseType -> Dictionary -> Maybe BaseType
 follow [] !ix _d = Just ix
-follow (!c : !cs) !ix d = if ord c == fromIntegral (ord '\0')
+follow (!c : cs) !ix d = if ord c == 0
   then Just ix
   else case followChar (fromIntegral . ord $ c) ix d of
          Nothing -> Nothing
@@ -153,15 +154,16 @@ follow (!c : !cs) !ix d = if ord c == fromIntegral (ord '\0')
 followPrefixLength
   :: HasCallStack => String -> SizeType -> BaseType -> Dictionary -> Maybe BaseType
 followPrefixLength !cs !l !ix d =
-    let follow' !ix' [] = Just ix'
-        follow' !ix' (!i : !is) =
+    let !cs' = UV.fromList (fmap (fromIntegral . ord) cs)
+        follow' !ix' [] = Just ix'
+        follow' !ix' (!i : is) =
 #ifdef trace
           tracePure (concat ["-followLength ix ", show i, " l ", show l]) $!
 #endif
-              case followChar (fromIntegral $ ord (cs !! fromIntegral i)) ix' d of
+              case followChar (cs' UV.! i) ix' d of
                 Nothing -> Nothing
                 Just !nIx -> follow' nIx is
-    in follow' ix [0 .. pred l]
+    in follow' ix [0 .. pred (fromIntegral l)]
 {-# INLINE followPrefixLength #-}
 
 -- | Dump dictionary to stdout.
