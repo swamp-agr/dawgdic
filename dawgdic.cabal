@@ -1,4 +1,4 @@
-cabal-version:      3.14
+cabal-version:      3.12
 -- The cabal-version field refers to the version of the .cabal specification,
 -- and can be different from the cabal-install (the tool) version and the
 -- Cabal (the library) version you are using. As such, the Cabal (the library)
@@ -23,10 +23,10 @@ name:               dawgdic
 version:            0.1.0
 
 -- A short (one-line) description of the package.
--- synopsis:
+synopsis: Generation and traversal of compressed directed acyclic dawg graphs
 
 -- A longer description of the package.
--- description:
+description: Generation and traversal of compressed directed acyclic dawg graphs
 
 -- The license under which the package is released.
 license:            BSD-3-Clause
@@ -129,7 +129,6 @@ library
 benchmark dawgdic-bench
   type:                exitcode-stdio-1.0
   hs-source-dirs:      bench
-  import:              warnings
   main-is:             Main.hs
   ghc-options:         -O2 -rtsopts
   build-depends:       base
