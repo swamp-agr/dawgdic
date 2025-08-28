@@ -120,84 +120,84 @@ bench-show --presentation=Solo report results.csv
 ```
 Benchmark                      default(μs)
 ------------------------------ -----------
-10/dawgdic.follow                    22.83
-10/dawg.follow                       84.73
-10/dawg-ord.follow                  112.70
-10/packed-dawg.follow               153.57
-100/dawgdic.follow                  342.51
-100/dawg.follow                    1390.66
-100/dawg-ord.follow                1853.18
-100/packed-dawg.follow             2253.21
-1000/dawgdic.follow                3755.68
-1000/dawg.follow                  19082.06
-1000/dawg-ord.follow              21964.74
-1000/packed-dawg.follow           30714.20
+10/dawgdic.follow                    21.04
+10/dawg.follow                       85.41
+10/dawg-ord.follow                  110.42
+10/packed-dawg.follow               147.30
+100/dawgdic.follow                  311.05
+100/dawg.follow                    1367.81
+100/dawg-ord.follow                1774.78
+100/packed-dawg.follow             2098.12
+1000/dawgdic.follow                3273.02
+1000/dawg.follow                  18842.47
+1000/dawg-ord.follow              21992.03
+1000/packed-dawg.follow           28938.01
 ------------------------------ -----------
-10/dawgdic.lookup value              24.82
-10/dawg.lookup value                 58.22
-10/dawg-ord.lookup value            213.32
-100/dawgdic.lookup value            330.57
-100/dawg.lookup value               833.03
-100/dawg-ord.lookup value          3212.93
-1000/dawgdic.lookup value          4070.23
-1000/dawg.lookup value            11787.74
-1000/dawg-ord.lookup value        36521.00
+10/dawgdic.lookup value              21.74
+10/dawg.lookup value                 61.89
+10/dawg-ord.lookup value            209.93
+100/dawgdic.lookup value            290.13
+100/dawg.lookup value               847.27
+100/dawg-ord.lookup value          2973.35
+1000/dawgdic.lookup value          3551.44
+1000/dawg.lookup value            14217.29
+1000/dawg-ord.lookup value        40111.28
+10/dawgdic.member                    21.02
 ------------------------------ -----------
-10/dawgdic.member                    23.76
-10/dawg.member                       56.37
-10/dawg-ord.member                  184.54
-10/packed-dawg.member               154.27
-100/dawgdic.member                  354.90
-100/dawg.member                     856.64
-100/dawg-ord.member                2842.97
-100/packed-dawg.member             2248.56
-1000/dawgdic.member                8335.12
-1000/dawg.member                  10020.16
-1000/dawg-ord.member              32508.10
-1000/packed-dawg.member           31006.43
+10/dawg.member                       56.43
+10/dawg-ord.member                  191.74
+10/packed-dawg.member               173.97
+100/dawgdic.member                  343.32
+100/dawg.member                     873.70
+100/dawg-ord.member                2863.96
+100/packed-dawg.member             2200.33
+1000/dawgdic.member                9288.22
+1000/dawg.member                  13878.72
+1000/dawg-ord.member              31428.47
+1000/packed-dawg.member           29089.83
 ------------------------------ -----------
-10/dawgdic.keys                     180.86
-10/dawg.keys                        100.74
-10/dawg-ord.keys                    161.75
-10/packed-dawg.keys                  49.61
-100/dawgdic.keys                   2314.76
-100/dawg.keys                      1412.84
-100/dawg-ord.keys                  2261.92
-100/packed-dawg.keys                720.42
-1000/dawgdic.keys                 28035.17
-1000/dawg.keys                    16735.86
-1000/dawg-ord.keys                28050.78
-1000/packed-dawg.keys              7561.71
+10/dawgdic.keys                     108.33
+10/dawg.keys                        100.23
+10/dawg-ord.keys                    160.51
+10/packed-dawg.keys                  50.50
+100/dawgdic.keys                   1392.78
+100/dawg.keys                      1413.00
+100/dawg-ord.keys                  2324.99
+100/packed-dawg.keys                692.23
+1000/dawgdic.keys                 15628.83
+1000/dawg.keys                    16541.79
+1000/dawg-ord.keys                27612.77
+1000/packed-dawg.keys              7415.48
 ------------------------------ -----------
-10/dawgdic.values                   123.79
-10/dawg.values                       71.34
-10/dawg-ord.values                  138.60
-100/dawgdic.values                 1519.01
-100/dawg.values                    1084.41
-100/dawg-ord.values                1869.49
-1000/dawgdic.values               21219.50
-1000/dawg.values                  11604.29
-1000/dawg-ord.values              21996.63
+10/dawgdic.values                    52.26
+10/dawg.values                       72.29
+10/dawg-ord.values                  134.79
+100/dawgdic.values                  616.02
+100/dawg.values                    1060.87
+100/dawg-ord.values                1794.82
+1000/dawgdic.values                6457.32
+1000/dawg.values                  11734.25
+1000/dawg-ord.values              21532.54
 ------------------------------ -----------
-10/dawgdic.toList                   179.85
-10/dawg.toList                      115.07
-10/dawg-ord.toList                  200.56
-100/dawgdic.toList                 2358.35
-100/dawg.toList                    1696.74
-100/dawg-ord.toList                2773.02
-1000/dawgdic.toList               41068.60
-1000/dawg.toList                  18312.91
-1000/dawg-ord.toList              35826.00
+10/dawgdic.toList                   107.26
+10/dawg.toList                      116.89
+10/dawg-ord.toList                  202.35
+100/dawgdic.toList                 1367.87
+100/dawg.toList                    1608.26
+100/dawg-ord.toList                2898.26
+1000/dawgdic.toList               16334.34
+1000/dawg.toList                  18578.59
+1000/dawg-ord.toList              36360.44
 ------------------------------ -----------
-10/dawgdic.complete word            418.32
-10/dawg.complete word               260.42
-10/packed-dawg.complete word        311.15
-100/dawgdic.complete word          7897.64
-100/dawg.complete word             4765.40
-100/packed-dawg.complete word      5762.11
-1000/dawgdic.complete word       110815.38
-1000/dawg.complete word           71789.43
-1000/packed-dawg.complete word    71823.28
+10/dawgdic.complete word            367.97
+10/dawg.complete word               248.14
+10/packed-dawg.complete word        303.69
+100/dawgdic.complete word          6151.51
+100/dawg.complete word             4494.85
+100/packed-dawg.complete word      4913.83
+1000/dawgdic.complete word        71152.49
+1000/dawg.complete word           58222.76
+1000/packed-dawg.complete word    60828.53
 ------------------------------ -----------
 ```
 
