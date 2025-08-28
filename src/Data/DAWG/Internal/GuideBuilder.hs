@@ -21,7 +21,6 @@ import Data.DAWG.Internal.Dictionary
 import Data.DAWG.Internal.Guide (Guide (..))
 import Data.DAWG.Internal.GuideUnit (GuideUnit (..))
 
-import qualified Data.Vector as Vector
 import qualified Data.Vector.Generic.Mutable as V
 import qualified Data.Vector.Unboxed as UV
 
@@ -76,8 +75,8 @@ build' dawg dict = build dawg dict >>= \case
 freeze :: PrimMonad m => GuideBuilder_ m -> m Guide
 freeze gb = do
   funits <- UV.freeze $ guideBuilderUnits gb  
-  let !guideUnits = (Vector.fromList . UV.toList) funits
-  let !guideSize = fromIntegral $ Vector.length guideUnits
+  let !guideUnits = (UV.fromList . UV.toList) funits
+  let !guideSize = fromIntegral $ UV.length guideUnits
   pure Guide{..}
 {-# INLINE freeze #-}
 

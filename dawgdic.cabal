@@ -124,6 +124,8 @@ library
     -- Base language which the package is written in.
     default-language: GHC2021
 
+    ghc-options: -O2
+
 benchmark dawgdic-bench
   type:                exitcode-stdio-1.0
   hs-source-dirs:      bench
