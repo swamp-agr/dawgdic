@@ -51,8 +51,8 @@ data DAWGBuilder_ m = DAWGBuilder
   , dawgBuilderFlagPool :: ObjectPool (PrimState m) Bit -- ^ Pool of bit flags to store merges.
   , dawgBuilderUnitPool :: ObjectPool (PrimState m) DAWGUnit -- ^ Pool of dawg units.
   , dawgBuilderHashTable :: ObjectPool (PrimState m) BaseType -- ^ Supportive pool of hashes.
-  , dawgBuilderUnfixedUnits :: Stack (PrimState m) BaseType -- ^ Supportive stack to keep track of for unfixed units.
-  , dawgBuilderUnusedUnits :: Stack (PrimState m) BaseType -- ^ Supportive stack to keep track of unused units
+  , dawgBuilderUnfixedUnits :: Stack (PrimState m) -- ^ Supportive stack to keep track of for unfixed units.
+  , dawgBuilderUnusedUnits :: Stack (PrimState m) -- ^ Supportive stack to keep track of unused units
   , dawgBuilderRefs :: !(IntArray (PrimState m)) -- ^ Array which holds a few numbers: 'numOfStates', 'numOfMergedTransitions', 'numOfMergingStates'.
   }
 

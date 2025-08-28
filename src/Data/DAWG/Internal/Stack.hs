@@ -8,27 +8,25 @@ Stability: experimental
 module Data.DAWG.Internal.Stack where
 
 import Control.Monad.Primitive (PrimMonad, PrimState)
-import Data.Foldable
 import Data.Primitive.MutVar
+
+import Data.DAWG.Internal.BaseType
 
 -- ** Stack
 
 -- | Represents mutable stack. Used to build DAWG in 'Data.DAWG.Internal.DAWGBuilder.DAWGBuilder'.
 -- Implements subset of @std::stack@ API.
-newtype Stack m a = StackRef { getStackRef :: MutVar m (Stack_ a) }
+newtype Stack m = StackRef { getStackRef :: MutVar m Stack_ }
 
 -- | Represents immutable stack with explicit data constructors.
 -- | For mutable version see 'Stack'.
-data Stack_ a
-  = Elem !a !(Stack_ a)
+data Stack_
+  = Elem {-# UNPACK #-} !BaseType !Stack_
   | EndOfStack
-  deriving Foldable
-
-instance Show a => Show (Stack_ a) where
-  show = show . reverse . toList
+  deriving Show
 
 -- | Pushes given element to the stack.
-push :: forall a m. PrimMonad m => a -> Stack (PrimState m) a -> m ()
+push :: forall m. PrimMonad m => BaseType -> Stack (PrimState m) -> m ()
 push v ref =
   let go = \case
         EndOfStack -> Elem v EndOfStack
@@ -38,27 +36,27 @@ push v ref =
 
 -- | Gets a single element from the given immutable stack if it is present.
 -- Returns 'Nothing' otherwise. For mutable version see 'top'.
-top_ :: Stack_ a -> Maybe a
+top_ :: Stack_ -> Maybe BaseType
 top_ = \case
   EndOfStack -> Nothing
   Elem !el !_st -> Just el
 {-# INLINE top_ #-}
 
 -- | Gets a single element from the given mutable stack if it is present.
-top :: forall a m. PrimMonad m => Stack (PrimState m) a -> m (Maybe a)
+top :: forall m. PrimMonad m => Stack (PrimState m) -> m (Maybe BaseType)
 top ref = readMutVar (getStackRef ref) >>= pure . top_
 {-# INLINE top #-}
 
 -- | Drops a single element from the given mutable stack.
 -- If stack is empty, no changes will happen.
-pop :: forall a m. PrimMonad m => Stack (PrimState m) a -> m ()
+pop :: forall m. PrimMonad m => Stack (PrimState m) -> m ()
 pop ref = readMutVar (getStackRef ref) >>= \case
   EndOfStack -> pure ()
   Elem !_el !st -> writeMutVar (getStackRef ref) st
 {-# INLINE pop #-}
 
 -- | Calculates size of the immutable stack.
-size :: forall a. Stack_ a -> Int
+size :: Stack_ -> Int
 size EndOfStack = 0
 size (Elem !_a rest) =
   let !prevStackSize = size rest

@@ -10,7 +10,7 @@ module Data.DAWG.Internal.Guide where
 import Control.DeepSeq (NFData)
 import Control.Monad (forM_)
 import Data.Binary
-import Data.Vector (Vector)
+import Data.Vector.Unboxed (Vector)
 import Data.Vector.Binary ()
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
@@ -19,7 +19,7 @@ import Data.DAWG.Internal.BaseType
 import Data.DAWG.Internal.GuideUnit (GuideUnit)
 
 import qualified Data.Binary as Binary
-import qualified Data.Vector as Vector
+import qualified Data.Vector.Unboxed as Vector
 
 import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 

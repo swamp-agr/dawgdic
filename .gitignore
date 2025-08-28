@@ -1,3 +1,4 @@
 dist-newstyle
 dawgdic-comparison/dist-newstyle
 dawgdic-comparison/*.dawg
+dawgdic-comparison/data/*.dawg
