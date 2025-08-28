@@ -10,7 +10,15 @@ This is a ported version of [C++ dawgdic library](https://github.com/s-yata/dawg
 
 ## Features
 
-This library offers `DAWG`, `Dictionary`, `Guide` and `Completer` data types as well as their builders.
+This library offers `DAWG`, `Dictionary`, `Guide` and `Completer` data types as well as their builders. 
+
+- `DAWG` represents word graph. It is provided as intermediate data structure.
+- `Dictionary` represents compact layout for `DAWG`. It offers API to check the presence of the word and associated value in the graph. Also it could be stored into a file and loaded from file.
+- `Guide` is being used as a tree-like index to get the faster navigation through the dictionary. Also could be stored into a file and loaded from file.
+
+Input characters must be in range 0-255.
+
+This port does not contain `RankedGuide` and `RankedCompleter` (yet).
 
 ### Comparison with other DAWG libraries
 
@@ -47,20 +55,53 @@ This library offers `DAWG`, `Dictionary`, `Guide` and `Completer` data types as 
 
 ## Installation
 
-Add following snippet to your `cabal.project`.
-
-```
-source-repository-package
-  type: git
-  location: https://github.com/swamp-agr/dawgdic.git
-  tag: <commit>
-```
-
 Add `dawgdic` dependency to your project and run `cabal build`.
 
 
 ## Building and Querying
 
+Building DAWG from lexicon of words and ignoring insertion failures is as simple as this:
+
+```haskell
+>>> import Data.DAWG.DAWG
+>>> dawg <- fromAscList . lines =<< readFile "/path/to/lexicon"
+```
+
+Otherwise, consider mutable builder. It could also be useful if words are associated with values.
+
+```haskell
+buildOrError content = do
+  dawgBuilder <- new
+  forM_ content \(word, value) -> do
+    result <- insert word (Just value) dawgBuilder
+    unless result $ error "Insert failed"
+  freeze dawgBuilder
+```
+
+Building dictionary and guide:
+
+```
+>>> import qualified Data.DAWG.Dictionary as D
+>>> import qualified Data.DAWG.Guide as G
+>>> dict <- D.build' dawg
+>>> guide <- G.build' dawg dict
+```
+
+Saving dictionary and guide:
+
+```
+>>> D.write "dict.dawg" dict
+>>> G.write "guide.dawg" guide
+```
+
+Loading dictionary and guide:
+
+```
+>>> dict <- D.load "dict.dawg"
+>>> guide <- G.load "guide.dawg"
+```
+
+Consider using `Completer` for auto-complete-like queries or if you need to obtain lexicon back from `Dictionary` and `Guide`.
 
 ## Benchmarks
 

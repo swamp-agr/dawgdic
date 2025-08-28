@@ -42,8 +42,7 @@ import Data.DAWG.Internal.DAWG
 -- To build DAWG from sorted list of words, ignoring all words that could not be inserted due to cycles, e.g. "banana", use 'fromAscList':
 --
 -- >>> import Data.DAWG.DAWG
--- >>> import qualified Data.Vector as Vector
--- >>> dawg <- fromAscList . Vector.fromList . lines =<< readFile "/path/to/lexicon"
+-- >>> dawg <- fromAscList . lines =<< readFile "/path/to/lexicon"
 -- >>>
 --
 -- To get more control over inserting (i.e. inspecting insertion results), use following sequence:
