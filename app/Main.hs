@@ -91,6 +91,7 @@ run = \case
       Nothing -> Dict.write dictionaryPath dict
       Just WithGuide -> do
         guide <- Guide.build' dawg dict
+        Dict.write dictionaryPath dict
         Guide.write ("guide." <> dictionaryPath) guide
       Just WithRankedGuide -> error "not implemented yet"
     
