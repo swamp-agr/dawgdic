@@ -61,6 +61,11 @@ flag trace
      manual: True
      default: False
 
+flag exe
+     description: Build executable
+     manual: True
+     default: False
+
 library
     -- Import common warning flags.
     import:           warnings
@@ -175,3 +180,17 @@ test-suite spec
       Data.DAWG.BuildSpec
       Data.DAWG.CompleterSpec
       Data.DAWG.DictionarySpec
+
+executable dawgdic
+  main-is: app/Main.hs
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >= 4.17.2.1 && < 4.25.0.0
+    , optparse-applicative
+    , vector
+  default-language: Haskell2010
+  if flag(exe)
+    build-depends:
+      dawgdic
+  else
+    buildable: False
