@@ -32,16 +32,11 @@ spec = do
             value = fromMaybe maxBound mVal :: ValueType
         DAWG.insert (Vector.fromList w) (Just value) db
       dawg <- DAWG.freeze db
-      mDictB <- Dict.build dawg
-      forM_ mDictB \dictBuilder -> do
-        dict <- Dict.freeze dictBuilder
-        Dict.write "lexicon.dic" dict
-      isJust mDictB `shouldBe` True
-
-      dict <- Dict.read "lexicon.dic"
+      -- it must not fail since the DictionarySpec covers it
+      dict <- Dict.build' dawg
       mGuide <- G.build dawg dict
       isJust mGuide `shouldBe` True
-      forM_ mGuide \guide -> G.write "lexicon.gde" guide
+      forM_ mGuide \guide -> G.write "lexicon.dic" guide
     
     it "Completes keys from a lexicon" do
       let completerResultFile = "completer-result"
@@ -52,24 +47,24 @@ spec = do
                 [ " ", w, keyToString nc, " = ", show $ C.value nc ]
               goNext w nc
 
-          go :: BaseType -> String -> String -> Dict.Dictionary -> G.Guide -> IO ()
-          go _dictIx _fullWord [] _dict _guide = pure ()
-          go dictIx fw w d g = do
+          go :: BaseType -> String -> String -> G.Guide -> IO ()
+          go _dictIx _fullWord [] _guide = pure ()
+          go dictIx fw w g = do
+            let d = G.guideDictionary g
             case Dict.followPrefixLength w (fromIntegral $ length w) dictIx d of
               Nothing -> pure ()
               Just nextDictIx -> do
-                let !nc = start nextDictIx "" d g
+                let !nc = start nextDictIx "" g
                 goNext fw nc
-                go nextDictIx fw w d g
+                go nextDictIx fw w g
 
       writeFile completerResultFile ""
-      dict <- Dict.read "lexicon.dic"
-      guide <- G.read "lexicon.gde"
+      guide <- G.read "lexicon.dic"
       
       contents <- readFile "data/query"
       forM_ (lines contents) \l -> do
         appendFile completerResultFile $ concat [ l, ":" ]
-        go Dict.root l l dict guide
+        go Dict.root l l guide
         appendFile completerResultFile "\n"
 
       True `shouldBe` True

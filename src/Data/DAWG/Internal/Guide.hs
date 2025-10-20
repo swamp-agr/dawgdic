@@ -16,11 +16,13 @@ import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 
 import Data.DAWG.Internal.BaseType
+import Data.DAWG.Internal.Dictionary (Dictionary)
 import Data.DAWG.Internal.GuideUnit (GuideUnit)
 
 import qualified Data.Binary as Binary
 import qualified Data.Vector.Unboxed as Vector
 
+import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 
 -- ** Guide
@@ -32,14 +34,16 @@ import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 -- * Guide size is stored in unsigned int.
 --
 data Guide = Guide
-  { guideUnits :: Vector GuideUnit -- ^ Array of 'Data.DAWG.Internal.GuideUnit.GuideUnit'. Index is equal to 'Data.DAWG.Internal.Dictionary.Dictionary' index.
+  { guideDictionary :: Dictionary -- ^ 'Data.DAWG.Internal.Dictionary.Dictionary' associated with this Guide.
   , guideSize :: SizeType -- ^ Size of array. Stored separately.
+  , guideUnits :: Vector GuideUnit -- ^ Array of 'Data.DAWG.Internal.GuideUnit.GuideUnit'. Index is equal to 'Data.DAWG.Internal.Dictionary.Dictionary' index.
   } deriving (Generic, Binary, NFData)
 
 -- | Constructs an empty guide.
 empty :: Guide
 empty = Guide
-  { guideUnits = Vector.empty
+  { guideDictionary = Dict.empty
+  , guideUnits = Vector.empty
   , guideSize = 0
   }
 {-# INLINE empty #-}

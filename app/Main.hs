@@ -124,19 +124,20 @@ run = \case
                   [ " ", w, keyToString nc, " = ", show $ C.value nc ]
                 goNext w nc
 
-            go _dictIx _fullWord [] _dict _guide = pure ()
-            go dictIx fw w d g = do
+            go _dictIx _fullWord [] _guide = pure ()
+            go dictIx fw w g = do
+              let d = Guide.guideDictionary g
               case Dict.followPrefixLength w (fromIntegral $ length w) dictIx d of
                 Nothing -> pure ()
                 Just nextDictIx -> do
-                  let !nc = start nextDictIx "" d g
+                  let !nc = start nextDictIx "" g
                   goNext fw nc
-                  go nextDictIx fw w d g
+                  go nextDictIx fw w g
         dict <- Dict.read dictionaryPath
         guide <- Guide.read $ "guide." <> dictionaryPath
         forM_ (lines contents) \l -> do
           putStr $ concat [l, ":"]
-          go Dict.root l l dict guide
+          go Dict.root l l guide
           putStr "\n"
         
       Just WithRankedGuide -> error "not implemented yet"

@@ -40,6 +40,14 @@ data Dictionary = Dictionary
   , dictionarySize :: SizeType -- ^ Size of the dictionary.
   } deriving (Generic, Binary, NFData)
 
+-- | Empty dictionary that does not contain any elements.
+empty :: Dictionary
+empty = Dictionary
+  { dictionaryUnits = UV.empty
+  , dictionarySize = 0
+  }
+{-# INLINE empty #-}
+
 -- | Root dictionary index. Equivalent to @0@.
 root :: BaseType
 root = 0
