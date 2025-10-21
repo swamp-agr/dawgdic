@@ -116,7 +116,7 @@ Utilities/10/Dict.contains                  22.46
 Utilities/10/Dict.lookup                    22.68
 Utilities/10/Dict.follow                    22.42
 Utilities/10/Guide.build'                   76.81
-Utilities/10/Completer.completeKeys        385.35
+Utilities/10/Completer.completeKeys        293.73
 ------------------------------------- ------------
 Utilities/100/Dawg.fromAscList           66486.21
 Utilities/100/Dict.build'               194881.38
@@ -124,7 +124,7 @@ Utilities/100/Dict.contains                326.16
 Utilities/100/Dict.lookup                  323.45
 Utilities/100/Dict.follow                  319.86
 Utilities/100/Guide.build'                 782.24
-Utilities/100/Completer.completeKeys      7016.36
+Utilities/100/Completer.completeKeys      5157.75
 ------------------------------------- ------------
 Utilities/1000/Dawg.fromAscList         888061.61
 Utilities/1000/Dict.build'             1659798.44
@@ -132,7 +132,7 @@ Utilities/1000/Dict.contains              3627.54
 Utilities/1000/Dict.lookup                3638.10
 Utilities/1000/Dict.follow                3564.64
 Utilities/1000/Guide.build'               7992.73
-Utilities/1000/Completer.completeKeys    82343.20
+Utilities/1000/Completer.completeKeys    56788.87
 ------------------------------------- ------------
 ```
 
@@ -230,15 +230,15 @@ Benchmark                      default(μs)
 1000/dawg.toList                  18578.59
 1000/dawg-ord.toList              36360.44
 ------------------------------ -----------
-10/dawgdic.complete word            367.97
-10/dawg.complete word               248.14
-10/packed-dawg.complete word        303.69
-100/dawgdic.complete word          6151.51
-100/dawg.complete word             4494.85
-100/packed-dawg.complete word      4913.83
-1000/dawgdic.complete word        71152.49
-1000/dawg.complete word           58222.76
-1000/packed-dawg.complete word    60828.53
+10/dawgdic.complete word            305.66
+10/dawg.complete word               240.24
+10/packed-dawg.complete word        315.09
+100/dawgdic.complete word          5341.40
+100/dawg.complete word             4497.49
+100/packed-dawg.complete word      4866.73
+1000/dawgdic.complete word        59699.40
+1000/dawg.complete word           55223.88
+1000/packed-dawg.complete word    59961.42
 ------------------------------ -----------
 ```
 
