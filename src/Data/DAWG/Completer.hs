@@ -61,7 +61,7 @@ import Data.DAWG.Internal.Completer
 --
 -- Begin completing. Prepare 'Completer' to traverse the dictionary using guide.
 --
--- >>> let c_started = start dictIndex "a" dict guide
+-- >>> let c_started = start dictIndex "a" guide
 --
 -- Get next completion result
 --

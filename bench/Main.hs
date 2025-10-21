@@ -72,8 +72,8 @@ dictFollowBench !dict lexicon =
   let go dict !w = Dict.follow w Dict.root dict
   in go dict <$> lexicon
 
-completerCompleteKeysBench !dict !guide lexicon =
-  let go !w = C.completeKeys w dict guide
+completerCompleteKeysBench !guide lexicon =
+  let go !w = C.completeKeys w guide
   in concatMap go lexicon
 
 utilities n = do
@@ -88,7 +88,7 @@ utilities n = do
     , bench "Dict.lookup" $ nf (dictLookupBench dict) lexiconN
     , bench "Dict.follow" $ nf (dictFollowBench dict) lexiconN
     , bench "Guide.build'" $ nfIO (G.build' dawg dict)
-    , bench "Completer.completeKeys" $ nf (completerCompleteKeysBench dict guide) lexiconN
+    , bench "Completer.completeKeys" $ nf (completerCompleteKeysBench guide) lexiconN
     ]
 
 -- ** Main

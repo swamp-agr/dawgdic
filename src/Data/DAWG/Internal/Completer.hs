@@ -175,23 +175,24 @@ value c = Dict.value (completerLastIndex c) (completerDictionary c)
 -- >>> completeKeys "a" dict guide
 -- ["a", "an", "and", "appear", "apple"]
 --
-completeKeys :: String -> Dictionary -> Guide -> [String]
-completeKeys prefix dict guide = 
-  let !l = fromIntegral $ length prefix
-      goDict acc !dictIx =
-        case Dict.followPrefixLength prefix l dictIx dict of
+completeKeys :: String -> Guide -> [String]
+completeKeys !prefix guide = 
+  let !dict = guideDictionary guide
+      goDict !dictIx !acc =
+        case Dict.follow prefix dictIx dict of
           Nothing -> acc
           Just !nextDictIx ->
             let !nc = start nextDictIx "" guide
-                !nacc = goNext acc nc
-            in goDict nacc nextDictIx
-      goNext acc !comp = case next comp of
+                !nacc = goNext nc acc
+            in goDict nextDictIx nacc
+      goNext !comp !acc = case next comp of
         Nothing -> acc
         Just !nc ->
           let !nextWord = concat [prefix, keyToString nc]
               !nacc = nextWord : acc
-          in goNext nacc nc
-  in goDict [] Dict.root
+          in goNext nc nacc
+  -- please re-run comparison benchmarks if you want to modify this function
+  in goDict Dict.root []
 {-# INLINE completeKeys #-}
 
 -- | Apply completer to entire lexicon, starting with a function
