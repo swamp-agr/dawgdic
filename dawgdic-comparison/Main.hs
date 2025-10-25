@@ -70,18 +70,6 @@ readMaybe transformer selector builder hasValue item size = case selector item o
 
 -- ** Builders / Readers
 
-readDictionary transform dawgBuilder hasValue n = do
-  let dictionaryPath = concat ["data/dict.", show n, if hasValue then ".v" else "", ".dawg"]
-  dictionaryExists <- doesFileExist dictionaryPath
-  if dictionaryExists
-    then Dict.read dictionaryPath
-    else do
-      lexicon <- readLexicon transform hasValue n
-      dawg <- dawgBuilder lexicon
-      dict <- Dict.build' dawg
-      Dict.write dictionaryPath dict
-      pure dict
-
 readGuide transform dawgBuilder hasValue n = do
   let guidePath = concat ["data/guide.", show n, if hasValue then ".v" else "", ".dawg"]
   guideExists <- doesFileExist guidePath
@@ -125,8 +113,8 @@ generate item inps = forM inps \size -> do
   lexiconN <- readLexicon transform withValues size
 
   -- dawgdic
-  dict <- readDictionary transform dawgBuilder withValues size
   guide <- readGuide transform dawgBuilder withValues size
+  let dict = G.guideDictionary guide
 
   -- dawg
   mDawgBench <- readMaybe transform benchItemDawg benchItemDawgBuilder withValues item size
@@ -274,7 +262,7 @@ keysBenchItem = BenchItem
 
 makeKeysGroup = generate keysBenchItem
 
-keysB dict guide _ws = nf (C.keys dict) guide
+keysB dict guide _ws = nf C.keys guide
 
 keysDawgB dawg _ws = nf D.keys dawg
 
@@ -298,7 +286,7 @@ valuesBenchItem = BenchItem
   , benchItemBuilder = fromKeyValueAscList
   }
 
-valuesB dict guide _ws = nf (C.values dict) guide
+valuesB _dict guide _ws = nf C.values guide
 
 valuesDawgB dawg _ws = nf D.elems dawg
 
@@ -324,7 +312,7 @@ toListBenchItem = BenchItem
 
 makeToListGroup = generate toListBenchItem
 
-toListB dict guide _ws = nf (C.toList dict) guide
+toListB dict guide _ws = nf C.toList guide
 
 toListDawgB dawg _ws = nf D.assocs dawg
 
@@ -348,8 +336,8 @@ completeWordBenchItem = BenchItem
 
 makeCompleteWordGroup = generate completeWordBenchItem
 
-completeWordB dict guide ws =
-  let f !w = C.completeKeys w dict guide
+completeWordB _dict guide ws =
+  let f !w = C.completeKeys w guide
   in nf (concatMap f) ws
 
 completeWordDawgB dawg ws =

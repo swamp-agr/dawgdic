@@ -76,7 +76,8 @@ freeze :: PrimMonad m => GuideBuilder_ m -> m Guide
 freeze gb = do
   funits <- UV.freeze $ guideBuilderUnits gb  
   let !guideUnits = (UV.fromList . UV.toList) funits
-  let !guideSize = fromIntegral $ UV.length guideUnits
+      !guideSize = fromIntegral $ UV.length guideUnits
+      !guideDictionary = guideBuilderDictionary gb
   pure Guide{..}
 {-# INLINE freeze #-}
 

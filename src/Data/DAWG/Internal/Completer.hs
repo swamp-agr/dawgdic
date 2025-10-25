@@ -33,17 +33,21 @@ import Data.DAWG.Trace
 
 -- | Use 'Completer' to perform completion requests by given word prefixes. It accumulates data during traversing dictionary via associated guide. Resulted completion could be accessed via 'keyToString' helper.
 data Completer = Completer
-  { completerDictionary :: !Dictionary
-  , completerGuide :: !Guide
+  { completerGuide :: !Guide
   , completerKey :: !(Vector UCharType)
   , completerIndexStack :: !Stack_
   , completerLastIndex :: !BaseType
   }
 
+-- | Helper to access a 'Dictionary' from a 'Completer'.
+completerDictionary :: Completer -> Dictionary
+completerDictionary = guideDictionary . completerGuide
+{-# INLINE completerDictionary #-}
+
 -- | Starts completion process for 'Completer' with a 'Dictionary' index and word prefix. For basic usage pass @0@ (dictionary 'Data.DAWG.Internal.Dictionary.root' index) as index.
 -- For more complex scenarios different 'Dictionary' indexes could be used here too.
-start :: HasCallStack => BaseType -> String -> Dictionary -> Guide -> Completer
-start !ix !prefix !dict !guide  =
+start :: HasCallStack => BaseType -> String -> Guide -> Completer
+start !ix !prefix !guide  =
 #ifdef trace
   unsafePerformIO do
     traceIO $ concat [ "-completer:start ix ", show ix, " prefix ", prefix, " l ", show $ length prefix ]
@@ -53,8 +57,7 @@ start !ix !prefix !dict !guide  =
           prefix' = Vector.map (fromIntegral @_ @UCharType . ord) $ Vector.fromList prefix
 
           !nc = Completer
-           { completerDictionary = dict
-           , completerGuide = guide
+           { completerGuide = guide
            , completerKey = runST do
                let l = Vector.length prefix'
                v <- Vector.unsafeThaw prefix'
@@ -172,39 +175,39 @@ value c = Dict.value (completerLastIndex c) (completerDictionary c)
 -- >>> completeKeys "a" dict guide
 -- ["a", "an", "and", "appear", "apple"]
 --
-completeKeys :: String -> Dictionary -> Guide -> [String]
-completeKeys prefix dict guide = 
-  let !l = fromIntegral $ length prefix
-      goDict acc !dictIx =
-        case Dict.followPrefixLength prefix l dictIx dict of
+completeKeys :: String -> Guide -> [String]
+completeKeys !prefix guide = 
+  let !dict = guideDictionary guide
+      goDict !dictIx !acc =
+        case Dict.follow prefix dictIx dict of
           Nothing -> acc
           Just !nextDictIx ->
-            let !nc = start nextDictIx "" dict guide
-                !nacc = goNext acc nc
-            in goDict nacc nextDictIx
-      goNext acc !comp = case next comp of
+            let !nc = start nextDictIx "" guide
+                !nacc = goNext nc acc
+            in goDict nextDictIx nacc
+      goNext !comp !acc = case next comp of
         Nothing -> acc
         Just !nc ->
           let !nextWord = concat [prefix, keyToString nc]
               !nacc = nextWord : acc
-          in goNext nacc nc
-  in goDict [] Dict.root
+          in goNext nc nacc
+  -- please re-run comparison benchmarks if you want to modify this function
+  in goDict Dict.root []
 {-# INLINE completeKeys #-}
 
 -- | Apply completer to entire lexicon, starting with a function
 -- that will handle dictionary traversal following the first character of the word.
 completeLexicon
   :: forall a. (Char -> Completer -> a)
-  -> Dictionary
   -> Guide
   -> [a]
-completeLexicon completerSelector dict guide =
-  let goDict dict' guide' !firstChar =
+completeLexicon completerSelector guide =
+  let goDict guide' !firstChar =
         let prefix = chr $ fromIntegral firstChar
-        in case Dict.followChar firstChar 0 dict' of
+        in case Dict.followChar firstChar 0 (guideDictionary guide') of
           Nothing -> []
           Just !nextDictIx ->
-            let !nc = start nextDictIx "" dict' guide'
+            let !nc = start nextDictIx "" guide'
             in goNext [] prefix nc
 
       goNext acc prefix comp = case next comp of
@@ -215,33 +218,33 @@ completeLexicon completerSelector dict guide =
           in goNext nacc prefix nc
 
   -- FIXME: optimise it even further
-  in concatMap  (goDict dict guide) [(1 :: CharType) .. 127]
+  in concatMap  (goDict guide) [(1 :: CharType) .. 127]
 {-# INLINE completeLexicon #-}
 
 -- | Traverses the entire DAWG, returns only words in no particular order.
-keys :: Dictionary -> Guide -> [String]
-keys dict guide =
+keys :: Guide -> [String]
+keys guide =
   let selectWord prefix comp = prefix : keyToString comp
-  in completeLexicon selectWord dict guide
+  in completeLexicon selectWord guide
 
 -- | Traverses the entire DAWG, returns only values associated with words.
 -- Considering the unboxed nature of dictionary units, if there is no value associated with
 -- a word, it returns @0@.
-values :: Dictionary -> Guide -> [ValueType]
-values dict guide =
+values :: Guide -> [ValueType]
+values guide =
   let selectValue _prefix = value
-  in completeLexicon selectValue dict guide
+  in completeLexicon selectValue guide
 
 -- | Traverses the entire DAWG, returns list of pairs
 -- where key is a word and value is 32-bit integer.
 -- In absence of value, @0@ will be returned.
-toList :: Dictionary -> Guide -> [(String, ValueType)]
-toList dict guide =
+toList :: Guide -> [(String, ValueType)]
+toList guide =
   let selectPair prefix comp =
         let !k = prefix : keyToString comp
             !v = value comp
         in (k, v)
-  in completeLexicon selectPair dict guide
+  in completeLexicon selectPair guide
 
 -- ** Helpers
 
