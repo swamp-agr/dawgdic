@@ -95,11 +95,19 @@ library
                       Data.DAWG.Internal.GuideBuilder
                       Data.DAWG.Internal.GuideUnit
                       Data.DAWG.Internal.LinkTable
+                      Data.DAWG.Internal.RankedCompleter
+                      Data.DAWG.Internal.RankedCompleterCandidate
+                      Data.DAWG.Internal.RankedCompleterNode
+                      Data.DAWG.Internal.RankedGuide
+                      Data.DAWG.Internal.RankedGuideBuilder
+                      Data.DAWG.Internal.RankedGuideLink
                       Data.DAWG.Internal.Stack
                       Data.DAWG.Completer
                       Data.DAWG.DAWG
                       Data.DAWG.Dictionary
                       Data.DAWG.Guide
+                      Data.DAWG.RankedCompleter
+                      Data.DAWG.RankedGuide
 
     if flag(trace)
       cpp-options: -Dtrace
@@ -119,7 +127,9 @@ library
                     , deepseq
                     , hashable
                     , primitive
+                    , containers
                     , vector
+                    , vector-algorithms
                     , vector-binary
                     , vector-hashtables
 
@@ -166,9 +176,11 @@ test-suite spec
     -- Test dependencies.
     build-depends:
                   base  >= 4.17.2.1 && < 4.25.0.0
+                , containers
                 , dawgdic
                 , hashable
                 , hspec
+                , QuickCheck
                 , text
                 , vector
 
@@ -180,6 +192,7 @@ test-suite spec
       Data.DAWG.BuildSpec
       Data.DAWG.CompleterSpec
       Data.DAWG.DictionarySpec
+      Data.DAWG.RankedCompleterSpec
 
 executable dawgdic
   main-is: app/Main.hs

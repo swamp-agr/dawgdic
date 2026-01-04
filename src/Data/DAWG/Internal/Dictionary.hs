@@ -106,7 +106,7 @@ lookup :: HasCallStack => String -> Dictionary -> Maybe ValueType
 lookup !k d =
   case follow k root d of
     Nothing -> Nothing
-    Just ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
+    Just ix -> Just $! value ix d
 {-# INLINE lookup #-}
 
 -- | Similarlty to 'lookup', it performs lookup of the word prefix
@@ -120,7 +120,7 @@ lookupPrefixLength :: HasCallStack => String -> SizeType -> Dictionary -> Maybe 
 lookupPrefixLength !k !l d =
   case followPrefixLength k l root d of
     Nothing -> Nothing
-    Just !ix -> DictionaryUnit.value <$> (dictionaryUnits d UV.!? fromIntegral ix)
+    Just !ix -> Just $! value ix d
 {-# INLINE lookupPrefixLength #-}
 
 -- | Follows the character by dictionary index of the previous character.
