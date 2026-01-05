@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.RankedGuideBuilder
+Description: Exports ranked guide builder as well as its internal API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.RankedGuideBuilder where
 
@@ -34,9 +41,11 @@ import Data.DAWG.Trace
 
 -- ** Ranked Guide Builder
 
+-- | A mutable builder of 'Data.DAWG.Internal.RankedGuide.RankedGuide'.
 newtype RankedGuideBuilder m =
   RGBRef { getRGBRef :: MutVar (PrimState m) (RankedGuideBuilder_ m) }
 
+-- | Builder of Ranked Guide. Do not acess directly. Use 'RankedGuideBuilder' instead.
 data RankedGuideBuilder_ m = RankedGuideBuilder
   { rankedGuideBuilderDawg :: DAWG
   , rankedGuideBuilderDictionary :: Dictionary
@@ -45,7 +54,9 @@ data RankedGuideBuilder_ m = RankedGuideBuilder
   , rankedGuideBuilderIsFixedTable :: ObjectPool (PrimState m) UCharType
   }
 
-
+-- | Build 'Data.DAWG.Internal.RankedGuide.RankedGuide'
+-- from 'Data.DAWG.Internal.DAWG.DAWG' and 'Data.DAWG.Internal.Dictionary.Dictionary'.
+-- | Returns 'Nothing' if build fails.
 build :: HasCallStack => PrimMonad m => DAWG -> Dictionary -> m (Maybe RankedGuide)
 build dawg dict = do
   rgref@RGBRef{..} <- new dawg dict
@@ -67,6 +78,8 @@ build' dawg dict = build dawg dict >>= \case
   Nothing -> error "failed to build guide"
 {-# INLINE build' #-}
 
+-- | Generates 'Data.DAWG.Internal.RankedGuide.RankedGuide' out of 'RankedGuideBuilder'.
+-- Once this function is called, 'RankedGuideBuilder' must not be used anymore.
 freeze :: PrimMonad m => RankedGuideBuilder_ m -> m RankedGuide
 freeze rgb = do
   funits <- UV.freeze $ rankedGuideBuilderUnits rgb
@@ -78,6 +91,7 @@ freeze rgb = do
 
 -- ** Helpers
 
+-- | Initialises a new 'RankedGuideBuilder' from DAWG and Dictionary.
 new :: PrimMonad m => DAWG -> Dictionary -> m (RankedGuideBuilder m)
 new rankedGuideBuilderDawg rankedGuideBuilderDictionary = do
   rankedGuideBuilderUnits <- V.new 0
@@ -86,6 +100,7 @@ new rankedGuideBuilderDawg rankedGuideBuilderDictionary = do
   let rg = RankedGuideBuilder{..}
   RGBRef <$> newMutVar rg
 
+-- | Resize both units and flags based on a dictionary size. If guide size is equal or greater than dictionary size, it will leave guide builder unchanged.
 resizeUnitsAndFlags :: PrimMonad m => RankedGuideBuilder m -> m ()
 resizeUnitsAndFlags RGBRef{..} = do
   rgb <- readMutVar getRGBRef
@@ -100,6 +115,8 @@ resizeUnitsAndFlags RGBRef{..} = do
         { rankedGuideBuilderUnits = newUnits, rankedGuideBuilderIsFixedTable = newFlags }
   writeMutVar getRGBRef nrgb
 
+-- | Build ranked guide recursively from dawg index and dictionary index.
+-- Returns 'False' if fails.
 buildFromIndexes
   :: PrimMonad m
   => BaseType -> BaseType -> MutVar (PrimState m) ValueType -> RankedGuideBuilder m -> m Bool
@@ -165,6 +182,7 @@ buildFromIndexes !dawgIx !dictIx !maxValueRef rgref@RGBRef{..} = do
               resizeLinks initialNumLinks
               pure True
 
+-- | Finds the maximum value by using fixed units.
 findMaxValue
   :: PrimMonad m
   => BaseType -> MutVar (PrimState m) ValueType -> RankedGuideBuilder_ m -> m Bool
@@ -185,6 +203,7 @@ findMaxValue !startDictIx !maxValueRef rgb = do
         $! Dict.value dictIx (rankedGuideBuilderDictionary rgb)
       pure itHasValue            
 
+-- | Enumerates links to the next states.
 enumerateLinks :: PrimMonad m => BaseType -> BaseType -> RankedGuideBuilder m -> m Bool
 enumerateLinks !startDawgIx !dictIx rgref@RGBRef{..} = do
   rgb0 <- readMutVar getRGBRef
@@ -244,6 +263,7 @@ enumerateLinks !startDawgIx !dictIx rgref@RGBRef{..} = do
 
   go startDawgChildIx
 
+-- | Modifies units.
 turnLinksToUnits :: PrimMonad m => BaseType -> Int -> RankedGuideBuilder m -> m Bool
 #ifdef trace
 turnLinksToUnits !dictIx !linksBegin rgref@RGBRef{..} = do
@@ -277,6 +297,7 @@ turnLinksToUnits !dictIx !linksBegin RGBRef{..} = do
             go dictSiblingIx (succ ix)
   go dictStartChildIx (succ linksBegin)
 
+-- | Follows a transition without any check.
 followWithoutCheck
   :: PrimMonad m => BaseType -> UCharType -> RankedGuideBuilder_ m -> m BaseType
 followWithoutCheck !ix !label' rgb = do
@@ -284,11 +305,13 @@ followWithoutCheck !ix !label' rgb = do
       offset' = DictUnit.offset $ (dictUnits UV.! fromIntegral ix)
   pure ((ix .^. offset') .^. fromIntegral label')
 
+-- | Sets dictionary unit as a fixed by index.
 setIsFixed :: PrimMonad m => BaseType -> RankedGuideBuilder_ m -> m ()
 setIsFixed !ix rgb = do
   let setIsFixed' !v = v .|. (1 .<<. (fromIntegral ix `mod` 8))
   rankedGuideBuilderIsFixedTable rgb !<~~ (fromIntegral ix `div` 8) $! setIsFixed'
                              
+-- | Checks whether given dictionary index is fixed or not.
 isFixed :: PrimMonad m => BaseType -> RankedGuideBuilder_ m -> m Bool
 isFixed !ix rgb = do
   v <- rankedGuideBuilderIsFixedTable rgb !~ (fromIntegral ix `div` 8)

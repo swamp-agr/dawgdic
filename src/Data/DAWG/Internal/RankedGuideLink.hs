@@ -1,3 +1,10 @@
+{-|
+Module: Data.DAWG.Internal.RankedGuideLink
+Description: Exports ranked guide link as well as its internal API.
+Copyright: (c) Andrey Prokopenko, 2025
+License: BSD-3-Clause
+Stability: experimental
+-}
 {-# LANGUAGE TypeFamilies #-}
 module Data.DAWG.Internal.RankedGuideLink where
 
@@ -11,6 +18,9 @@ import Data.DAWG.Internal.BaseType
 
 import Data.Char (chr)
 
+-- ** Ranked Guide Link
+
+-- | Link that connects dictionary label with associated value.
 newtype RankedGuideLink = RankedGuideLink
   { rankedGuideLink
     :: ( UCharType -- label
@@ -19,7 +29,7 @@ newtype RankedGuideLink = RankedGuideLink
   }
   deriving newtype Eq
 
--- For sorting links in descending value order
+-- | Sorting links performed by descending value order.
 instance Ord RankedGuideLink where
   lhs `compare` rhs = if value lhs /= value rhs
     then value rhs `compare` value lhs
@@ -37,14 +47,18 @@ deriving newtype instance V.MVector UV.MVector RankedGuideLink
 deriving newtype instance VG.Vector UV.Vector RankedGuideLink
 deriving newtype instance Unbox RankedGuideLink
 
+-- | Sets a label to the link.
 setLabel :: UCharType -> RankedGuideLink -> RankedGuideLink
 setLabel !l (RankedGuideLink (!_, !v)) = RankedGuideLink (l, v)
 
+-- | Sets a value to the link.
 setValue :: ValueType -> RankedGuideLink -> RankedGuideLink
 setValue !v (RankedGuideLink (!l, !_)) = RankedGuideLink (l, v)
 
+-- | Gets the label of the link.
 label :: RankedGuideLink -> UCharType
 label = fst . rankedGuideLink
 
+-- | Gets the value of the link.
 value :: RankedGuideLink -> ValueType
 value = snd . rankedGuideLink

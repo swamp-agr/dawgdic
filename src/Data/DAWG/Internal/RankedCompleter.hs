@@ -42,25 +42,30 @@ import Data.DAWG.Trace
 
 -- ** Priority Queue
 
+-- | Priority queue.
 data PQ a = PQ
-  { pqSet :: !(Set a)
-  , pqTop :: !a
+  { pqSet :: !(Set a) -- ^ Underneath the priority queue it is just a 'Data.Set.Set'.
+  , pqTop :: !a -- ^ Top value of a queue. Holds a "minimal" value of a set. When set is empty, it holds an empty value as well.
   }
 
+-- | Checks whether priority queue is nullable or not.
 nullPQ :: PQ a -> Bool
 nullPQ = Set.null . pqSet
 {-# INLINE nullPQ #-}
 
+-- | Initialises an empty priority queue.
 emptyPQ :: Monoid a => PQ a
 emptyPQ = PQ
   { pqSet = Set.empty
   , pqTop = mempty
   }
 
+-- | Gets a top element from the priority queue. /O(1)/.
 queueTop :: PQ a -> a
 queueTop = pqTop
 {-# INLINE queueTop #-}
 
+-- | Removes and discards a minimal element from the priority queue.
 queuePop :: Monoid a => PQ a -> PQ a
 queuePop !prev =
   let !nset = Set.deleteMin (pqSet prev)
@@ -69,6 +74,7 @@ queuePop !prev =
      else PQ { pqSet = nset, pqTop = Set.findMin nset }
 {-# INLINE queuePop #-}
 
+-- | Pushes an element to the queue.
 queuePush :: (Ord a) => a -> PQ a -> PQ a
 queuePush a prev = if nullPQ prev
   then PQ { pqSet = Set.singleton a, pqTop = a }
@@ -79,6 +85,7 @@ queuePush a prev = if nullPQ prev
 
 -- ** Ranked Completer
 
+-- | Use 'RankedCompleter' to perform completion requests ranking results by values stored in the dictionary. As 'Data.DAWG.Internal.Completer.Completer', it accumulates data during traversing dictionary via ranked guide. Resulted completion could be accessed via 'keyToString' helper. Value is stored in 'rankedCompleterValue'.
 data RankedCompleter = RankedCompleter
   { rankedCompleterGuide :: !RankedGuide
   , rankedCompleterKey :: !(Vector UCharType)
@@ -89,9 +96,11 @@ data RankedCompleter = RankedCompleter
   , rankedCompleterCandidateQueue :: !(PQ RankedCompleterCandidate)
   }
 
+-- | Helper to access a dictionary from 'RankedCompleter'.
 rankedCompleterDictionary :: RankedCompleter -> Dictionary
 rankedCompleterDictionary = guideDictionary . rankedGuide . rankedCompleterGuide
 
+-- | Retrieves a completion result from 'RankedCompleter' as 'String'.
 keyToString :: RankedCompleter -> String
 keyToString = fmap (chr . fromIntegral) . safeInit . V.toList . rankedCompleterKey
   where
@@ -100,7 +109,8 @@ keyToString = fmap (chr . fromIntegral) . safeInit . V.toList . rankedCompleterK
     {-# INLINE safeInit #-}
 {-# INLINE keyToString #-}
 
-
+-- | Starts completion process for 'RankedCompleter' with a 'Dictionary' index and word prefix. For basic usage pass @0@ (dictionary 'Data.DAWG.Internal.Dictionary.root' index) as index.
+-- Fpr more complex scenarios different 'Dictionary' indexes could be used here too.
 start :: HasCallStack => BaseType -> String -> RankedGuide -> RankedCompleter
 start !ix !prefix !guide =
     let !gsize = guideSize $ rankedGuide guide
@@ -119,6 +129,7 @@ start !ix !prefix !guide =
       then enqueueNode 0 $ snd $ createNode ix 0 (fromIntegral $ ord 'X') nc
       else nc
   
+-- | Retrieves next completion. If present, 'RankedCompleter' will be returned. 'Nothing', otherwise.
 next :: HasCallStack => RankedCompleter -> Maybe RankedCompleter
 #ifdef trace
 next rc = unsafePerformIO do
@@ -222,11 +233,12 @@ next rc =
     Just rcc -> Just $! processCandidate rcc
 
 -- | Retrieves a value associated
--- with the last visited index by 'Completer' from the 'Dictionary'.
+-- with the last visited index by 'RankedCompleter' from the 'Dictionary'.
 value :: RankedCompleter -> ValueType
 value = rankedCompleterValue
 {-# INLINE value #-}
 
+-- | Creates a new node and stores it inside 'RankedCompleter'. Returns node identifier and new state of 'RankedCompleter'.
 createNode
   :: BaseType -> BaseType -> UCharType -> RankedCompleter -> (BaseType, RankedCompleter)
 #ifdef trace
@@ -265,7 +277,8 @@ enqueueNode !nodeIx !c
       in c { rankedCompleterNodeQueue = nnq
            , rankedCompleterNodes = ns
            }
-  
+
+-- | Pushes a candidate to the priority queue.
 enqueueCandidate :: HasCallStack => BaseType -> RankedCompleter -> RankedCompleter
 #ifdef trace
 enqueueCandidate !nodeIx !c = unsafePerformIO do
@@ -291,6 +304,13 @@ enqueueCandidate !nodeIx !c =
   in c { rankedCompleterCandidateQueue = nextCQueue }
 #endif
 
+-- | Finds a sibling for given node index. Returns:
+--
+-- * Flag indicating whether sibling has found or not.
+-- * Updated 'RankedCompleter'.
+-- * Next node indentifier.
+--
+-- If sibling has not found, returns @(False, original completer, original node index)@.
 findSibling :: BaseType -> RankedCompleter -> (Bool, RankedCompleter, BaseType)
 #ifdef trace
 findSibling !nodeIx !c = unsafePerformIO do
@@ -341,6 +361,7 @@ findSibling !nodeIx !c =
       in (True, nc', nextNodeIx)
 #endif
           
+-- | Recursively finds a terminal node for given node index.
 findTerminal :: BaseType -> RankedCompleter -> (BaseType, RankedCompleter)
 findTerminal !nodeIx !c
   | Node.nodeLabel (rankedCompleterNodes c V.! fromIntegral nodeIx) == 0 = (nodeIx, c)
@@ -375,10 +396,12 @@ findTerminal !nodeIx !c
     in findTerminal nextNodeIx nc'
 #endif
 
+-- | Follows label in the dictionary without checking for offsets.
 followWithoutCheck :: BaseType -> UCharType -> Dictionary -> BaseType
 followWithoutCheck !ix !label !d =
   (ix .^. DU.offset (Dict.dictionaryUnits d UV.! fromIntegral ix)) .^. fromIntegral label
 
+-- | Helper that pushes element to the end of the array.
 pushBack :: a -> Vector a -> Vector a
 pushBack a as = runST $ snoc as
   where
