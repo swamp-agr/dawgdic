@@ -283,6 +283,7 @@ findTerminal !ix !c
                          }
              in findTerminal nextIx nc
 
+-- | Helper which appends label to the end of the key vector and resizes the vector.
 appendKeyLabel :: CharType -> Int -> Vector UCharType -> Vector UCharType
 appendKeyLabel !label !ksize !key = runST do
   v <- Vector.unsafeThaw key

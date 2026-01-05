@@ -48,7 +48,7 @@ data GuideBuilder_ m = GuideBuilder
 
 -- | Build 'Data.DAWG.Internal.Guide.Guide'
 -- from 'Data.DAWG.Internal.DAWG.DAWG' and 'Data.DAWG.Internal.Dictionary.Dictionary'.
--- Returns 'False' if build failed.
+-- Returns 'Nothing' if build fails.
 build :: HasCallStack => PrimMonad m => DAWG -> Dictionary -> m (Maybe Guide)
 build dawg dict = do
   gref@GRef{..} <- new dawg dict
@@ -108,7 +108,7 @@ resizeUnitsAndFlags GRef{..} = do
 {-# INLINE resizeUnitsAndFlags #-}
 
 -- | Build guide recursively from dawg index and dictionary index.
--- Returns 'Nothing' if fails.
+-- Returns 'False' if fails.
 buildFromIndexes :: PrimMonad m => BaseType -> BaseType -> GuideBuilder_ m -> m Bool
 buildFromIndexes !dawgIx !dictIx !gb = do
 #ifdef trace
