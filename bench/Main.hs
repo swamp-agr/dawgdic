@@ -9,7 +9,9 @@ import Data.Maybe (listToMaybe)
 import qualified Data.DAWG.DAWG as Dawg
 import qualified Data.DAWG.Dictionary as Dict
 import qualified Data.DAWG.Guide as G
+import qualified Data.DAWG.RankedGuide as RG
 import qualified Data.DAWG.Completer as C
+import qualified Data.DAWG.RankedCompleter as RC
 
 -- ** Dataset preparation
 
@@ -76,11 +78,16 @@ completerCompleteKeysBench !guide lexicon =
   let go !w = C.completeKeys w guide
   in concatMap go lexicon
 
+rankedCompleterCompleteKeysBench !guide lexicon =
+  let go !w = RC.completeKeys w guide
+  in concatMap go lexicon
+
 utilities n = do
   !lexiconN <- evaluate =<< readLexicon n
   !dawg <- evaluate =<< Dawg.fromAscList lexiconN
   !dict <- evaluate =<< Dict.build' dawg
   !guide <- evaluate =<< G.build' dawg dict
+  !rguide <- evaluate =<< RG.build' dawg dict
   return $ bgroup (show n)
     [ bench "Dawg.fromAscList" $ nfIO (dawgFromAscListBench lexiconN)
     , bench "Dict.build'" $ nfIO (Dict.build' dawg)
@@ -89,6 +96,7 @@ utilities n = do
     , bench "Dict.follow" $ nf (dictFollowBench dict) lexiconN
     , bench "Guide.build'" $ nfIO (G.build' dawg dict)
     , bench "Completer.completeKeys" $ nf (completerCompleteKeysBench guide) lexiconN
+    , bench "RankedCompleter.completeKeys" $ nf (rankedCompleterCompleteKeysBench rguide) lexiconN
     ]
 
 -- ** Main

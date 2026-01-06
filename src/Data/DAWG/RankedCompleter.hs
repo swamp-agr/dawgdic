@@ -13,6 +13,7 @@ module Data.DAWG.RankedCompleter
   , next
   , keyToString
   , value
+  , completeKeys
   ) where
 
 import Data.DAWG.Internal.RankedCompleter
