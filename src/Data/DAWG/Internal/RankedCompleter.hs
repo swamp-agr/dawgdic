@@ -434,3 +434,43 @@ dumpVector label v = do
     let u = v V.! ix
     traceIO $ concat [show ix, "\t", show u]
 #endif
+
+-- | Retrieve all completion results by given @prefix@
+-- from 'Dictionary' via associated 'RankedGuide'. Consider following lexicon:
+--
+-- @
+--   a
+--   an
+--   and
+--   appear
+--   apple
+--   bin
+--   can
+--   cat
+-- @
+--
+-- Once dictionary and guide are ready, call 'completeKeys':
+--
+-- >>> completeKeys "a" dict guide
+-- ["a", "an", "and", "appear", "apple"]
+--
+completeKeys :: String -> RankedGuide -> [(String, ValueType)]
+completeKeys  !prefix guide =
+  let !dict = rankedGuideDictionary guide
+      goDict !dictIx !acc =
+        case Dict.follow prefix dictIx dict of
+          Nothing -> acc
+          Just !nextDictIx ->
+            let !nc = start nextDictIx "" guide
+                !nacc = goNext nc acc
+            in goDict nextDictIx nacc
+      goNext !comp !acc = case next comp of
+        Nothing -> acc
+        Just !nc ->
+          let !nextWord = concat [prefix, keyToString nc]
+              !nextVal = rankedCompleterValue nc
+              !nacc = (nextWord, nextVal) : acc
+          in goNext nc nacc
+  -- please re-run comparison benchmarks if you want to modify this function
+  in goDict Dict.root []
+{-# INLINE completeKeys #-}

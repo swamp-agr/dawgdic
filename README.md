@@ -108,32 +108,35 @@ Consider using `Completer` for auto-complete-like queries or if you need to obta
 ### Utilities
 
 ```
-Benchmark                             default(μs)
-------------------------------------- ------------
-Utilities/10/Dawg.fromAscList             5549.76
-Utilities/10/Dict.build'                 26981.64
-Utilities/10/Dict.contains                  22.46
-Utilities/10/Dict.lookup                    22.68
-Utilities/10/Dict.follow                    22.42
-Utilities/10/Guide.build'                   76.81
-Utilities/10/Completer.completeKeys        293.73
-------------------------------------- ------------
-Utilities/100/Dawg.fromAscList           66486.21
-Utilities/100/Dict.build'               194881.38
-Utilities/100/Dict.contains                326.16
-Utilities/100/Dict.lookup                  323.45
-Utilities/100/Dict.follow                  319.86
-Utilities/100/Guide.build'                 782.24
-Utilities/100/Completer.completeKeys      5157.75
-------------------------------------- ------------
-Utilities/1000/Dawg.fromAscList         888061.61
-Utilities/1000/Dict.build'             1659798.44
-Utilities/1000/Dict.contains              3627.54
-Utilities/1000/Dict.lookup                3638.10
-Utilities/1000/Dict.follow                3564.64
-Utilities/1000/Guide.build'               7992.73
-Utilities/1000/Completer.completeKeys    56788.87
-------------------------------------- ------------
+Benchmark                                   default(μs)
+------------------------------------------- -----------
+Utilities/10/Dawg.fromAscList                   5549.76
+Utilities/10/Dict.build'                       26981.64
+Utilities/10/Dict.contains                        22.46
+Utilities/10/Dict.lookup                          22.68
+Utilities/10/Dict.follow                          22.42
+Utilities/10/Guide.build'                         76.81
+Utilities/10/Completer.completeKeys              293.73
+Utilities/10/RankedCompleter.completeKeys       3437.14
+------------------------------------------- ------------
+Utilities/100/Dawg.fromAscList                  66486.21
+Utilities/100/Dict.build'                      194881.38
+Utilities/100/Dict.contains                       326.16
+Utilities/100/Dict.lookup                         323.45
+Utilities/100/Dict.follow                         319.86
+Utilities/100/Guide.build'                        782.24
+Utilities/100/Completer.completeKeys             5157.75
+Utilities/100/RankedCompleter.completeKeys      66817.64
+------------------------------------------- ------------
+Utilities/1000/Dawg.fromAscList                888061.61
+Utilities/1000/Dict.build'                    1659798.44
+Utilities/1000/Dict.contains                     3627.54
+Utilities/1000/Dict.lookup                       3638.10
+Utilities/1000/Dict.follow                       3564.64
+Utilities/1000/Guide.build'                      7992.73
+Utilities/1000/Completer.completeKeys           56788.87
+Utilities/1000/RankedCompleter.completeKeys   1333117.49
+------------------------------------------- ------------
 ```
 
 ### How to reproduce:
