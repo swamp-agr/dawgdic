@@ -5,6 +5,7 @@ Copyright: (c) Andrey Prokopenko, 2025
 License: BSD-3-Clause
 Stability: experimental
 -}
+{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.DictionaryBuilder where
 
 import Control.Monad (forM_, when)
@@ -31,6 +32,10 @@ import qualified Data.DAWG.Internal.DAWG as Dawg
 import qualified Data.DAWG.Internal.DictionaryExtraUnit as Extra
 import qualified Data.DAWG.Internal.DictionaryUnit as DictUnit
 import qualified Data.DAWG.Internal.LinkTable as LT
+
+#ifdef trace
+import Data.DAWG.Trace
+#endif
 
 -- ** DAWG Dictionary Builder
 
@@ -98,31 +103,70 @@ build !dawg = do
   !dref@DDBRef{..} <- new dawg
   !preDdb <- readMutVar getDDBRef
   let !ltsize = dawgNumOfMergingStates dawg + (dawgNumOfMergingStates dawg .>>. 1)
+#ifdef trace
+  traceIO ("build ltsize " <> show ltsize)
+#endif
   LT.init (dawgDictionaryBuilderLinkTable preDdb) (fromIntegral ltsize)
 
+#ifdef trace
+  traceIO ("build reserveUnit 0")
+  traceWith dump dref
+#endif
+
   reserveUnit 0 dref
+#ifdef trace
+  traceWith dump dref
+#endif
   -- after unit reservation most likely vectors are being resized
   !ddb <- readMutVar getDDBRef
   let units = dawgDictionaryBuilderUnits ddb
 
+#ifdef trace
+  traceIO ("build extra setIsUsed 0")
+#endif
   modifyExtras ddb 0 $ Extra.setIsUsed
   !u0 <- units !~  0
+#ifdef trace
+  traceIO ("build get unit[0] " <> show u0)
+#endif
   let (!isOffsetSet, !u1) = DictUnit.setOffset 1 u0
   if not isOffsetSet
-    then pure Nothing
+    then do
+#ifdef trace
+      traceIO $ "build: offset is not set for " <> show u0
+#endif
+      pure Nothing
     else do
+#ifdef trace
+      traceIO ("build set offset unit[0] " <> show u1)
+#endif
       let !u2 =  DictUnit.setLabel (fromIntegral $ ord '\0') u1
+#ifdef trace
+      traceIO ("build set label unit[0] " <> show u2)
+#endif
       units <~~ 0 $ u2
 
       buildResult <- if (Dawg.size dawg > 1)
         then do
+#ifdef trace
+          traceIO ("build from dawg from 0")
+#endif
           buildFromDawg Dawg.root 0 dref
         else pure True
 
+#ifdef trace
+      traceIO ("build result: " <> show buildResult)
+#endif
       if not buildResult
         then pure Nothing
         else do
+#ifdef trace
+          traceIO "build fixAllBlocks"
+#endif
           fixAllBlocks dref
+#ifdef trace
+          traceWith dump dref
+#endif
           pure $! Just dref
 
 -- | Build a dictionary from 'Data.DAWG.Internal.DAWG.DAWG' and freezes its result.
@@ -154,6 +198,10 @@ new !dawgDictionaryBuilderDawg = do
    !dawgDictionaryBuilderLinkTable <- HT.initialize 0
    !dawgDictionaryBuilderRefs <- A.replicate 2 0
    dawgDictionaryBuilderRefs <~ unfixedIndex $ 0
+#ifdef trace
+   !uix <- dawgDictionaryBuilderRefs ! unfixedIndex
+   traceIO ("new dictionary builder: uix " <> show uix)
+#endif
    let d = DictionaryBuilder{..}
    DDBRef <$> newMutVar d
 {-# INLINE new #-}
@@ -164,6 +212,11 @@ buildFromDawg
   :: HasCallStack
   => PrimMonad m => BaseType -> BaseType -> DictionaryBuilder m -> m Bool
 buildFromDawg dawgIx dictIx dref@DDBRef{..} = do
+#ifdef trace
+  traceIO ("buildFromDawg dawgIx " <> show dawgIx <> " dictIx " <> show dictIx)
+  traceWith dump dref
+#endif
+
   ddb <- readMutVar getDDBRef
   let dawg = dawgDictionaryBuilderDawg ddb
   if Dawg.isLeaf dawgIx dawg
@@ -171,12 +224,19 @@ buildFromDawg dawgIx dictIx dref@DDBRef{..} = do
     else do
       let !dawgChildIx = Dawg.child dawgIx dawg
           whenMerging !ix action = do
+#ifdef trace
+            traceIO $ concat
+              ["-whenMerging dawgChildIx ", show ix, " ", show $ Dawg.isMerging ix dawg]
+#endif
             if not (Dawg.isMerging ix dawg)
             then pure Nothing
             else action
 
           withOffset !ix action = do
             !offset <- LT.find (dawgDictionaryBuilderLinkTable ddb) ix
+#ifdef trace
+            traceIO $ concat ["--withOffset dawgChildIx ", show ix, " offset ", show offset]
+#endif
             if offset /= 0
               then action ix offset
               else pure Nothing
@@ -208,6 +268,13 @@ buildFromDawg dawgIx dictIx dref@DDBRef{..} = do
                     | otherwise = do
                         let !l = Dawg.label ix dawg
                             !dictChildIx = offset .^. fromIntegral @_ @BaseType l
+#ifdef trace
+                        traceIO $ concat
+                          [ "--go ix ", show ix
+                          , " dictChildIx ", show dictChildIx
+                          , " offset ", show offset
+                          ]
+#endif
                         !buildResult <- buildFromDawg ix dictChildIx dref
                         if not buildResult
                           then pure False
@@ -233,17 +300,30 @@ arrangeChildNodes dawgIx dictIx dref@DDBRef{..} = do
 
       collectChildLabels 0 = pure ()
       collectChildLabels !ix = do
+#ifdef trace
+        traceIO ("-collectChildLabels ix " <> show ix)
+#endif
         l <- readMutVar labelSizeRef
         HT.insert (dawgDictionaryBuilderLabels ddb) l (Dawg.label ix dawg)
         modifyMutVar' labelSizeRef succ
         let !childIx = Dawg.sibling ix dawg
         collectChildLabels childIx
 
+#ifdef trace
+  traceIO $ concat
+    [ "arrangeChildNodes dawgIx ", show dawgIx
+    , " dawgChildIx ", show dawgChildIx
+    , " dictIx ", show dictIx
+    ]
+#endif
   -- Arrange child nodes.
   collectChildLabels dawgChildIx
 
   -- Find a good offset.
   !offset <- findGoodOffset dictIx ddb
+#ifdef trace
+  traceIO $ concat [ "arrangeChildNodes dictIx ", show dictIx, " offset ", show offset]
+#endif
   !offsetIsSet <- do
     !u <- dawgDictionaryBuilderUnits ddb !~ dictIx
     let (res, nu) = DictUnit.setOffset (dictIx .^. offset) u
@@ -261,6 +341,15 @@ arrangeChildNodes dawgIx dictIx dref@DDBRef{..} = do
                 reserveUnit dictChildIx dref
                 ddb2 <- readMutVar getDDBRef
 
+#ifdef trace
+                traceIO $ concat
+                  [ "-populateChildNodes i ", show i
+                  , " dawgChildIx ", show dawgChildIx'
+                  , " dawg_is_leaf ", show $ Dawg.isLeaf dawgChildIx' dawg
+                  , " dawg_value ", show $ Dawg.value dawgChildIx' dawg
+                  , " dictIx ", show dictIx, " dictChildIx ", show dictChildIx
+                  ]
+#endif
                 if Dawg.isLeaf dawgChildIx' dawg
                   then do
                     dawgDictionaryBuilderUnits ddb2 !<~~ dictIx $ DictUnit.setHasLeaf
@@ -287,6 +376,13 @@ findGoodOffset
 findGoodOffset ix ddb = do
   !unfixedIndex' <- fromIntegral <$> dawgDictionaryBuilderRefs ddb ! unfixedIndex
   let !numOfUnits' = numOfUnits ddb
+#ifdef trace
+  traceIO $ concat
+    [ "-findGoodOffset ix ", show ix
+    , " uix ", show unfixedIndex'
+    , " num_of_units ", show numOfUnits'
+    ]
+#endif
   if numOfUnits' <= unfixedIndex'
     then pure $ numOfUnits' .|. (ix .&. lowerMask)
     else do
@@ -296,6 +392,14 @@ findGoodOffset ix ddb = do
             | otherwise = do
                 l0 <- fromMaybe 0 <$> HT.lookup (dawgDictionaryBuilderLabels ddb) 0
                 let !offset = uix .^. fromIntegral l0
+#ifdef trace
+                traceIO $ concat
+                  [ "--scanUnusedUnits ix ", show ix
+                  , " uix ", show uix
+                  , " l ", show $ chr $ fromIntegral l0, " (", show l0, ")"
+                  , " offset ", show offset
+                  ]
+#endif
                 isGoodOffset ix offset ddb >>= \case
                   True -> pure offset
                   False -> do
@@ -334,6 +438,14 @@ reserveUnit
 reserveUnit ix dref = do
   do
     !ddb0 <- readMutVar (getDDBRef dref)
+#ifdef trace
+    !unfixedIndex' <- dawgDictionaryBuilderRefs ddb0 ! unfixedIndex
+    traceIO $ concat
+      [ "-reserveUnit ix ", show ix
+      , " num_of_units ", show (numOfUnits ddb0)
+      , " uix ", show unfixedIndex'
+      ] 
+#endif
     when (numOfUnits ddb0 <= ix) do
       expandDictionary dref
 
@@ -369,6 +481,14 @@ expandDictionary dref@DDBRef{..} = do
         !destNumOfUnits = srcNumOfUnits + blockSize
         !destNumOfBlocks = succ srcNumOfBlocks
 
+#ifdef trace
+    traceIO $ concat
+      [ "--expandDictionary src_u ", show srcNumOfUnits
+      , " src_b ", show srcNumOfBlocks
+      , " dest_u ", show destNumOfUnits
+      , " dest_b ", show destNumOfBlocks
+      ]
+#endif
   -- Fix old block
     when (numOfUnfixedBlocks < destNumOfBlocks) do
       fixBlock (srcNumOfBlocks - numOfUnfixedBlocks) dref
@@ -406,6 +526,14 @@ expandDictionary dref@DDBRef{..} = do
       let !lastId = numOfBlocks' - 1
       clearBlock lastId ddb1
 
+#ifdef trace
+  extrasSize <- numOfBlocks ddb1
+  traceIO $ concat
+    [ "--expandDictionary units new size "
+    , show (V.length (dawgDictionaryBuilderUnits ddb1))
+    , " blocks new size ", show extrasSize]
+
+#endif
   -- create a circular linked list for a new block
   !ddb2 <- readMutVar getDDBRef
 
@@ -414,8 +542,14 @@ expandDictionary dref@DDBRef{..} = do
         modifyExtras ddb2 i $ Extra.setPrev (pred i)
 
   forM_ [succ srcNumOfUnits .. pred destNumOfUnits] setNeighbourBlocks
+#ifdef trace
+  traceIO ("---setNeighbourBlocks " <> show destNumOfUnits)
+#endif
   !unfixedIndex' <- dawgDictionaryBuilderRefs ddb2 ! unfixedIndex
   let !uix = fromIntegral unfixedIndex'
+#ifdef trace
+  traceIO ("--expandDictionary uix " <> show uix)
+#endif
   modifyExtras ddb2  srcNumOfUnits $ Extra.setPrev (pred destNumOfUnits)
   modifyExtras ddb2 (pred destNumOfUnits) $ Extra.setNext srcNumOfUnits
 
@@ -434,12 +568,19 @@ fixAllBlocks
   => PrimMonad m
   => DictionaryBuilder m -> m ()
 fixAllBlocks dref@DDBRef{..} = do
+#ifdef trace
+  traceIO "-fixAllBlocks"
+  traceWith dump dref
+#endif
   ddb <- readMutVar getDDBRef
   numOfBlocks' <- numOfBlocks ddb
   let !begin = if numOfUnfixedBlocks < numOfBlocks'
         then numOfBlocks' - numOfUnfixedBlocks
         else 0
       !end = numOfBlocks'
+#ifdef trace
+  traceIO $ concat ["-fixAllBlocks begin ", show begin, " end ", show end]
+#endif
   forM_ [begin .. pred end] \blockId -> do
     fixBlock blockId dref
 {-# INLINE fixAllBlocks #-}
@@ -449,6 +590,9 @@ fixBlock
   :: HasCallStack
   => PrimMonad m => BaseType -> DictionaryBuilder m -> m ()
 fixBlock blockId dref@DDBRef{..} = do
+#ifdef trace
+  traceIO $ concat [ "-fixBlock block ", show blockId ]
+#endif
   ddb <- readMutVar getDDBRef
   let !begin = blockId * blockSize
       !end = begin + blockSize
@@ -462,11 +606,18 @@ fixBlock blockId dref@DDBRef{..} = do
         | otherwise = pure 0
 
   offset <- findUnusedOffsetForLabel begin
+#ifdef trace
+  traceIO $ concat [ "-fixBlock offset ", show offset ]
+#endif
 
   -- Labels of unused units are modified
   let go !ix
         | ix /= end = do
             ddb1 <- readMutVar getDDBRef
+#ifdef trace
+            ex' <- extras ddb1 ix
+            traceIO $ concat [ "-fixBlock ix ", show ix, " e ", show ex' ]
+#endif
             Extra.isFixed <$> extras ddb1 ix >>= \case
               True -> pure ()
               False -> do

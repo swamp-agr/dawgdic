@@ -5,6 +5,7 @@ Copyright: (c) Andrey Prokopenko, 2025
 License: BSD-3-Clause
 Stability: experimental
 -}
+{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.GuideBuilder where
 
 import Control.Monad (when)
@@ -26,6 +27,11 @@ import qualified Data.Vector.Unboxed as UV
 import qualified Data.DAWG.Internal.DAWG as Dawg
 import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
+
+#ifdef trace
+import Data.Char
+import Data.DAWG.Trace
+#endif
 
 -- ** Guide Builder
 
@@ -105,6 +111,14 @@ resizeUnitsAndFlags GRef{..} = do
 -- Returns 'False' if fails.
 buildFromIndexes :: PrimMonad m => BaseType -> BaseType -> GuideBuilder_ m -> m Bool
 buildFromIndexes !dawgIx !dictIx !gb = do
+#ifdef trace
+  ifd <- isFixed dictIx gb
+  traceIO $ concat
+    ["buildGuide dawgIx ", show dawgIx
+    , " dawgChildIx ", show $ Dawg.child dawgIx (guideBuilderDawg gb)
+    , " dictIx ", show dictIx, " is_fixed_dix ", show ifd
+    ]
+#endif
   isFixed dictIx gb >>= \case
     True -> pure True
     False -> do
@@ -115,6 +129,13 @@ buildFromIndexes !dawgIx !dictIx !gb = do
           !dict = guideBuilderDictionary gb
           !dawgChildIx = Dawg.child dawgIx dawg
       dawgChildIxRef <- newMutVar dawgChildIx
+#ifdef trace
+      traceIO $ concat
+        [ "-buildGuide dawgChildIx ", show dawgChildIx
+        , " l ", show $ chr $ fromIntegral $ Dawg.label dawgChildIx dawg
+        , " (", show $ Dawg.label dawgChildIx dawg, ")"
+        ]
+#endif
       when (Dawg.label dawgChildIx dawg == 0) do
         writeMutVar dawgChildIxRef $! Dawg.sibling dawgChildIx dawg
 
@@ -129,9 +150,21 @@ buildFromIndexes !dawgIx !dictIx !gb = do
                 | ix == 0 = pure True
                 | otherwise = do
                     let !childLabel = Dawg.label ix dawg
+#ifdef trace
+                    traceIO $ concat
+                      ["-go dawgChildIx ", show ix, " dictChildIx ", show dictIx'
+                      , " childLabel ", show childLabel
+                      ]
+#endif
                     case Dict.followChar (fromIntegral childLabel) dictIx' dict of
                       Nothing -> pure False
                       Just dictChildIx -> do
+#ifdef trace
+                        traceIO $ concat
+                          [ "-go follow dawgChildIx ", show ix
+                          , " dictChildIx ", show dictChildIx
+                          ]
+#endif
                         -- outer recursion loop
                         buildFromIndexes ix dictChildIx gb >>= \case
                           False -> pure False

@@ -56,6 +56,11 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
+flag trace
+     description: Enable tracing
+     manual: True
+     default: False
+
 flag exe
      description: Build executable
      manual: True
@@ -103,6 +108,11 @@ library
                       Data.DAWG.Guide
                       Data.DAWG.RankedCompleter
                       Data.DAWG.RankedGuide
+
+    if flag(trace)
+      cpp-options: -Dtrace
+      hs-source-dirs: src-trace
+      exposed-modules: Data.DAWG.Trace
 
     -- Modules included in this library but not exported.
     -- other-modules:

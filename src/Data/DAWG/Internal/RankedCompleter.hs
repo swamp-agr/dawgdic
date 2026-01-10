@@ -5,6 +5,7 @@ Copyright: (c) Andrey Prokopenko, 2025
 License: BSD-3-Clause
 Stability: experimental
 -}
+{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.RankedCompleter where
 
 import Control.Monad (forM, forM_)
@@ -32,6 +33,12 @@ import qualified Data.Set as Set
 import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic.Mutable as VM
+
+#ifdef trace
+import System.IO.Unsafe
+import Data.DAWG.Trace
+#endif
+
 
 -- ** Priority Queue
 
@@ -124,19 +131,42 @@ start !ix !prefix !guide =
   
 -- | Retrieves next completion. If present, 'RankedCompleter' will be returned. 'Nothing', otherwise.
 next :: HasCallStack => RankedCompleter -> Maybe RankedCompleter
+#ifdef trace
+next rc = unsafePerformIO do
+  traceIO $ concat ["-rc:next nq.size ", show $ V.length $ rankedCompleterNodeQueue rc]
+#else
 next rc =
+#endif
   let findSiblingNode !i !c
         | i >= fromIntegral (V.length $ rankedCompleterNodeQueue c) = c
+#ifdef trace
+        | otherwise = unsafePerformIO do
+          let tnodeIx = rankedCompleterNodeQueue c V.! i
+          traceIO $ concat [ "-rc:next ix ", show i, " nodeIx ", show tnodeIx]
+          dumpC rc
+#else
         | otherwise =
+#endif
           let !nodeIx = rankedCompleterNodeQueue c V.! i
               (hasFoundSibling, nc, nextNodeIx) = if rankedCompleterValue c == -1
                 then (True, c, nodeIx) -- skipping looking up sibling for -1
                 else findSibling nodeIx c
+#ifdef trace
+          if not hasFoundSibling
+             then pure $ findSiblingNode (succ i) nc
+             else do
+                  let (nextNodeIx', nc') = findTerminal nextNodeIx nc
+                  traceIO $ concat ["-next:findSiblingNode next-nix ", show nextNodeIx']
+                  let nc'' = enqueueCandidate nextNodeIx' nc'
+                  dumpC nc''
+                  pure $ findSiblingNode (succ i) nc''
+#else
           in if not hasFoundSibling
              then findSiblingNode (succ i) nc
              else let (nextNodeIx', nc') = findTerminal nextNodeIx nc
                       nc'' = enqueueCandidate nextNodeIx' nc'
                   in findSiblingNode (succ i) nc''
+#endif
       checkCandidate !c =
         let !nc = findSiblingNode 0 c
         in if nullPQ (rankedCompleterCandidateQueue nc)
@@ -194,7 +224,11 @@ next rc =
            , rankedCompleterValue = candidateValue candidate
            , rankedCompleterCandidateQueue = queuePop (rankedCompleterCandidateQueue nc')
            }
+#ifdef trace
+  pure $! case checkCandidate rc of
+#else
   in case checkCandidate rc of
+#endif
     Nothing -> Nothing
     Just rcc -> Just $! processCandidate rcc
 
@@ -207,7 +241,12 @@ value = rankedCompleterValue
 -- | Creates a new node and stores it inside 'RankedCompleter'. Returns node identifier and new state of 'RankedCompleter'.
 createNode
   :: BaseType -> BaseType -> UCharType -> RankedCompleter -> (BaseType, RankedCompleter)
+#ifdef trace
+createNode !dictIx !prevNodeIx' !label !c = unsafePerformIO do
+  traceIO $ concat ["---createNode dictIx ", show dictIx, " prev_nix ", show prevNodeIx', " l ", show label]
+#else
 createNode !dictIx !prevNodeIx' !label !c = 
+#endif
   let !dict = rankedCompleterDictionary c
       maybeSetTerminal x = if label == 0
         then x
@@ -218,7 +257,11 @@ createNode !dictIx !prevNodeIx' !label !c =
         $ Node.setDictIx dictIx
         $ Node.empty
       nextNodes = pushBack node (rankedCompleterNodes c)
+#ifdef trace
+  pure $! (fromIntegral $ V.length nextNodes - 1, c { rankedCompleterNodes = nextNodes })
+#else
   in (fromIntegral $ V.length nextNodes - 1, c { rankedCompleterNodes = nextNodes })
+#endif
 
 -- | Pushes a node to queue.
 enqueueNode :: BaseType -> RankedCompleter -> RankedCompleter
@@ -237,7 +280,16 @@ enqueueNode !nodeIx !c
 
 -- | Pushes a candidate to the priority queue.
 enqueueCandidate :: HasCallStack => BaseType -> RankedCompleter -> RankedCompleter
+#ifdef trace
+enqueueCandidate !nodeIx !c = unsafePerformIO do
+  let !_dictIx = Node.nodeDictIx (rankedCompleterNodes c V.! fromIntegral nodeIx)
+  traceIO $ concat ["---enqueueCandidate dictIx ", show _dictIx]
+  let !_dictValue = DU.value
+        $ Dict.dictionaryUnits (rankedCompleterDictionary c) UV.! fromIntegral _dictIx
+  traceIO $ concat ["---enqueueCandidate dictValue ", show _dictValue]
+#else
 enqueueCandidate !nodeIx !c =
+#endif
   let !dictIx = Node.nodeDictIx (rankedCompleterNodes c V.! fromIntegral nodeIx)
       !dictValue = DU.value
         $ Dict.dictionaryUnits (rankedCompleterDictionary c) UV.! fromIntegral dictIx
@@ -245,7 +297,12 @@ enqueueCandidate !nodeIx !c =
         $ Candidate.setNodeIx nodeIx
         $ Candidate.empty
       !nextCQueue = queuePush candidate (rankedCompleterCandidateQueue c)
+#ifdef trace
+  traceIO $ concat ["---enqueueCandidate nix ", show nodeIx, " v ", show dictValue]
+  pure $! c { rankedCompleterCandidateQueue = nextCQueue }
+#else
   in c { rankedCompleterCandidateQueue = nextCQueue }
+#endif
 
 -- | Finds a sibling for given node index. Returns:
 --
@@ -255,7 +312,13 @@ enqueueCandidate !nodeIx !c =
 --
 -- If sibling has not found, returns @(False, original completer, original node index)@.
 findSibling :: BaseType -> RankedCompleter -> (Bool, RankedCompleter, BaseType)
+#ifdef trace
+findSibling !nodeIx !c = unsafePerformIO do
+  traceIO $ concat ["--findSibling nix ", show nodeIx]
+  dumpC c
+#else
 findSibling !nodeIx !c =
+#endif
   let !node = (rankedCompleterNodes c) V.! fromIntegral nodeIx
       !prevNodeIx' = Node.prevNodeIx node
       !dictIx = Node.nodeDictIx node
@@ -271,22 +334,46 @@ findSibling !nodeIx !c =
                          !ns = V.modify modifyHasTerminal (rankedCompleterNodes c)
                      in Just ns
         else Just (rankedCompleterNodes c)
+#ifdef trace
+  traceIO $ concat
+    [ "--findSibling nix ", show nodeIx
+    , " prev_nix ", show prevNodeIx'
+    , " dictIx ", show dictIx
+    , " sib ", show siblingLabel
+    ]
+  case mChangedNodes of
+    Nothing -> pure (False, c, nodeIx)
+    Just nodes -> do
+#else
   in case mChangedNodes of
     Nothing -> (False, c, nodeIx)
     Just nodes ->
+#endif
       let !dictPrevIx = Node.nodeDictIx (nodes V.! fromIntegral prevNodeIx')
           !dict = rankedCompleterDictionary c
           !nextDictIx = followWithoutCheck dictPrevIx siblingLabel dict
           nc = c { rankedCompleterNodes = nodes }
           (nextNodeIx, nc') = createNode nextDictIx prevNodeIx' siblingLabel nc
 
+#ifdef trace
+      pure (True, nc', nextNodeIx)
+#else
       in (True, nc', nextNodeIx)
+#endif
           
 -- | Recursively finds a terminal node for given node index.
 findTerminal :: BaseType -> RankedCompleter -> (BaseType, RankedCompleter)
 findTerminal !nodeIx !c
   | Node.nodeLabel (rankedCompleterNodes c V.! fromIntegral nodeIx) == 0 = (nodeIx, c)
+#ifdef trace
+  | otherwise = unsafePerformIO do
+    let !dnode = rankedCompleterNodes c V.! fromIntegral nodeIx
+        !ddictIx = Node.nodeDictIx dnode
+        !dchildLabel = G.child ddictIx $ rankedCompleterGuide c
+    traceIO $ concat ["--findTerminal nix ", show nodeIx, " cl ", show dchildLabel, " dictIx ", show ddictIx]
+#else
   | otherwise =
+#endif
     let !node = rankedCompleterNodes c V.! fromIntegral nodeIx
         !dictIx = Node.nodeDictIx node
         !childLabel = G.child dictIx $ rankedCompleterGuide c
@@ -301,7 +388,13 @@ findTerminal !nodeIx !c
         !nextDictIx = followWithoutCheck dictIx childLabel dict
         nc = c { rankedCompleterNodes = nodes }
         (!nextNodeIx, nc') = createNode nextDictIx nodeIx childLabel nc
+#ifdef trace
+    traceIO $ concat ["--findTerminal next-nix ", show nextNodeIx, " nextDictIx ", show nextDictIx]
+    dumpC nc'
+    pure $! findTerminal nextNodeIx nc'
+#else
     in findTerminal nextNodeIx nc'
+#endif
 
 -- | Follows label in the dictionary without checking for offsets.
 followWithoutCheck :: BaseType -> UCharType -> Dictionary -> BaseType
@@ -319,6 +412,28 @@ pushBack a as = runST $ snoc as
       VM.unsafeWrite nv n a
       V.unsafeFreeze nv
 
+#ifdef trace
+dumpC :: VM.PrimMonad m => RankedCompleter -> m ()
+dumpC RankedCompleter{..} = do
+  traceIO "------- BEGIN -------"
+  traceIO $ concat ["prefix_length : ", show rankedCompleterPrefixLength]
+  traceIO $ concat ["value : ", show rankedCompleterValue]
+  dumpVector "key" rankedCompleterKey
+  dumpVector "nodes" rankedCompleterNodes
+  dumpVector "node_queue" rankedCompleterNodeQueue
+  traceIO $ concat ["candidate_queue : top : ", show $ pqTop rankedCompleterCandidateQueue]
+  dumpVector "candidate_queue : values" $ V.fromList $ Set.toList $ pqSet rankedCompleterCandidateQueue
+  traceIO "------- END -------"
+
+dumpVector :: (VM.PrimMonad m, Show a) => String -> Vector a -> m ()
+dumpVector label v = do
+  traceIO label
+  let l = V.length v
+  traceIO $ concat ["i(", show l, ")\tv"]
+  forM_ [ 0 .. pred l ] \ix -> do
+    let u = v V.! ix
+    traceIO $ concat [show ix, "\t", show u]
+#endif
 
 -- | Retrieve all completion results by given @prefix@
 -- from 'Dictionary' via associated 'RankedGuide'. Consider following lexicon:

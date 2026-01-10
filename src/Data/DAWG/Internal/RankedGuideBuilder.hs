@@ -5,6 +5,7 @@ Copyright: (c) Andrey Prokopenko, 2025
 License: BSD-3-Clause
 Stability: experimental
 -}
+{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.RankedGuideBuilder where
 
 import Control.Monad (when)
@@ -31,6 +32,12 @@ import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.DictionaryUnit as DictUnit
 import qualified Data.DAWG.Internal.GuideUnit as GuideUnit
 import qualified Data.DAWG.Internal.RankedGuideLink as Link
+
+#ifdef trace
+import Control.Monad (forM_)
+import Data.Char (chr)
+import Data.DAWG.Trace
+#endif
 
 -- ** Ranked Guide Builder
 
@@ -114,6 +121,15 @@ buildFromIndexes
   :: PrimMonad m
   => BaseType -> BaseType -> MutVar (PrimState m) ValueType -> RankedGuideBuilder m -> m Bool
 buildFromIndexes !dawgIx !dictIx !maxValueRef rgref@RGBRef{..} = do
+#ifdef trace
+  gb <- readMutVar getRGBRef
+  ifd <- isFixed dictIx gb
+  traceIO $ concat
+    ["buildRankedGuide dawgIx ", show dawgIx
+    , " dawgChildIx ", show $ Dawg.child dawgIx (rankedGuideBuilderDawg gb)
+    , " dictIx ", show dictIx, " is_fixed_dix ", show ifd
+    ]
+#endif
   let sortLinks n rgb = do
         let links = rankedGuideBuilderLinks rgb
             l = V.length links
@@ -145,7 +161,20 @@ buildFromIndexes !dawgIx !dictIx !maxValueRef rgref@RGBRef{..} = do
         True -> do
           -- enumerateLinks could resize vectors, thus, reading again
           rgb <- readMutVar getRGBRef
+#ifdef trace
+          traceIO $ concat
+            [ "buildRankedGuide links-b ("
+            , show initialNumLinks, ",0,"
+            , show $ pred $ V.length $ rankedGuideBuilderLinks rgb
+            , ")"
+            ]
+          dumpLinks rgref
+#endif
           sortLinks initialNumLinks rgb
+#ifdef trace
+          traceIO "buildRankedGuide links-a"
+          dumpLinks rgref
+#endif
           turnLinksToUnits dictIx initialNumLinks rgref >>= \case
             False -> pure False
             True -> do
@@ -186,6 +215,13 @@ enumerateLinks !startDawgIx !dictIx rgref@RGBRef{..} = do
             let !startValue = -1
                 !childLabel = Dawg.label dawgChildIx (rankedGuideBuilderDawg rgb)
             maxValueRef <- newMutVar startValue
+#ifdef trace
+            traceIO $ concat
+              [ "enumerateLinks dawgChildIx ", show dawgChildIx
+              , " dictIx ", show dictIx
+              , " childLabel ", show $ chr $ fromIntegral childLabel
+              ]
+#endif
             mValue <- if childLabel == 0
               then if (not $ Dict.hasValue dictIx $ rankedGuideBuilderDictionary rgb)
                    then pure Nothing
@@ -205,6 +241,13 @@ enumerateLinks !startDawgIx !dictIx rgref@RGBRef{..} = do
             case mValue of
               Nothing -> pure False
               Just value' -> do
+#ifdef trace
+                traceIO $ concat
+                  [ "enumerateLinks dawgChildIx ", show dawgChildIx
+                  , " dictIx ", show dictIx
+                  , " link ", show (RankedGuideLink (childLabel, value'))
+                  ]
+#endif
                 pushLinkBack (RankedGuideLink (childLabel, value'))
                 rgb1 <- readMutVar getRGBRef
                 let nextDawgIx = Dawg.sibling dawgChildIx (rankedGuideBuilderDawg rgb1)
@@ -222,8 +265,20 @@ enumerateLinks !startDawgIx !dictIx rgref@RGBRef{..} = do
 
 -- | Modifies units.
 turnLinksToUnits :: PrimMonad m => BaseType -> Int -> RankedGuideBuilder m -> m Bool
+#ifdef trace
+turnLinksToUnits !dictIx !linksBegin rgref@RGBRef{..} = do
+#else
 turnLinksToUnits !dictIx !linksBegin RGBRef{..} = do
+#endif
   rgb <- readMutVar getRGBRef
+#ifdef trace
+  link <- rankedGuideBuilderLinks rgb !~ fromIntegral linksBegin
+  traceIO $ concat
+    ["turnLinksToUnits dictIx ", show dictIx, " links-b ", show linksBegin
+    , " link ", show link
+    ]
+  dumpLinks rgref
+#endif
   let !lsize = V.length $ rankedGuideBuilderLinks rgb
       links = rankedGuideBuilderLinks rgb
       units = rankedGuideBuilderUnits rgb
@@ -263,3 +318,13 @@ isFixed !ix rgb = do
   let x = v .&. (1 .<<. (fromIntegral ix `mod` 8))
   pure $! x /= 0
 
+#ifdef trace
+dumpLinks :: PrimMonad m => RankedGuideBuilder m -> m ()
+dumpLinks RGBRef{..} = do
+  rgb <- readMutVar getRGBRef
+  let lsize = V.length $ rankedGuideBuilderLinks rgb
+  traceIO $ concat [ "ix(", show lsize, ")\tlabel\tvalue" ]
+  forM_ [0 .. (pred lsize)] \ix -> do
+    link <- rankedGuideBuilderLinks rgb !~ fromIntegral ix
+    traceIO $ concat [ show ix, "\t", show link ]
+#endif
