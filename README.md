@@ -270,6 +270,8 @@ bench-show --presentation=Solo report results.csv
 In cases of issues please attach callstack, provide minimal dictionary lexicon and provide logs with enabled tracing.
 
 ```
+git pull
+git switch traces
 cabal build -ftrace
 ```
 
