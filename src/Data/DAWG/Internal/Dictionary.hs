@@ -5,7 +5,6 @@ Copyright: (c) Andrey Prokopenko, 2025
 License: BSD-3-Clause
 Stability: experimental
 -}
-{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.Dictionary where
 
 import Control.DeepSeq (NFData)
@@ -24,10 +23,6 @@ import qualified Data.Binary as Binary
 import qualified Data.Vector.Unboxed as UV
 
 import qualified Data.DAWG.Internal.DictionaryUnit as DictionaryUnit
-
-#ifdef trace
-import Data.DAWG.Trace
-#endif
 
 -- ** Dictionary
 
@@ -132,17 +127,7 @@ followChar !l !ix d =
       !u = dictionaryUnits d UV.! fromIntegral ix
       !nextIx = (ix .^. DictionaryUnit.offset u) .^. lb
       !nu = dictionaryUnits d UV.! fromIntegral nextIx
-#ifdef trace
-      !debugStr = concat
-        [ "-follow l ", show $ chr $ fromIntegral l
-        , " ix ", show ix, " nextIx ", show nextIx
-        , " u ", show u, " nu ", show nu
-        ]
-#endif
   in
-#ifdef trace
-      tracePure debugStr $
-#endif
         if DictionaryUnit.label nu /= lb then Nothing else Just nextIx
 {-# INLINE followChar #-}
 
@@ -165,9 +150,6 @@ followPrefixLength !cs !l !ix d =
     let !cs' = UV.fromList (fmap (fromIntegral . ord) cs)
         follow' !ix' [] = Just ix'
         follow' !ix' (!i : is) =
-#ifdef trace
-          tracePure (concat ["-followLength ix ", show i, " l ", show l]) $!
-#endif
               case followChar (cs' UV.! i) ix' d of
                 Nothing -> Nothing
                 Just !nIx -> follow' nIx is

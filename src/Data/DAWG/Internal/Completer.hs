@@ -5,7 +5,6 @@ Copyright: (c) Andrey Prokopenko, 2025
 License: BSD-3-Clause
 Stability: experimental
 -}
-{-# LANGUAGE CPP #-}
 module Data.DAWG.Internal.Completer where
 
 import Control.Monad.ST (runST)
@@ -23,11 +22,6 @@ import qualified Data.Vector.Unboxed.Mutable as VM
 
 import qualified Data.DAWG.Internal.Dictionary as Dict
 import qualified Data.DAWG.Internal.Guide as Guide
-
-#ifdef trace
-import System.IO.Unsafe
-import Data.DAWG.Trace
-#endif
 
 -- ** Completer
 
@@ -48,11 +42,6 @@ completerDictionary = guideDictionary . completerGuide
 -- For more complex scenarios different 'Dictionary' indexes could be used here too.
 start :: HasCallStack => BaseType -> String -> Guide -> Completer
 start !ix !prefix !guide  =
-#ifdef trace
-  unsafePerformIO do
-    traceIO $ concat [ "-completer:start ix ", show ix, " prefix ", prefix, " l ", show $ length prefix ]
-    pure $!
-#endif
       let !gsize = guideSize guide
           prefix' = Vector.map (fromIntegral @_ @UCharType . ord) $ Vector.fromList prefix
 
@@ -86,16 +75,7 @@ next !c =
       {-# INLINE withNonRootLastIndex #-}
 
       withChildLabel !ix comp =
-#ifdef trace
-        unsafePerformIO do
-          let !childLabel = fromIntegral . Guide.child ix $! completerGuide comp
-          putStrLn $ concat
-            [ "next ix ", show ix, " lastIx ", show $ completerLastIndex comp
-            , " childLabel ", show childLabel]
-          pure $!
-#else
           let !childLabel = fromIntegral . Guide.child ix $! completerGuide comp in
-#endif
             if childLabel /= 0
               then followTerminal childLabel ix comp
               else go ix comp
@@ -130,12 +110,6 @@ next !c =
       {-# INLINE followTerminal #-}
 
       nextByIx !ix comp =
-#ifdef trace
-        unsafePerformIO do
-          traceIO $ concat
-            [ "next ix ", show ix, " lastIx ", show $ completerLastIndex comp]
-          pure $!
-#endif
             withNonRootLastIndex ix comp withChildLabel
       {-# INLINE nextByIx #-}
   in withNonEmptyStack c nextByIx
