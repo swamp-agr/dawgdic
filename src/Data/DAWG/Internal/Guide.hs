@@ -10,13 +10,14 @@ module Data.DAWG.Internal.Guide where
 import Control.DeepSeq (NFData)
 import Control.Monad (forM_)
 import Data.Binary
+import Data.Binary.Get (getWord32le)
+import Data.Binary.Put (putWord32le)
 import Data.Vector.Unboxed (Vector)
-import Data.Vector.Binary ()
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 
 import Data.DAWG.Internal.BaseType
-import Data.DAWG.Internal.Dictionary (Dictionary)
+import Data.DAWG.Internal.Dictionary (Dictionary, getMany)
 import Data.DAWG.Internal.GuideUnit (GuideUnit)
 
 import qualified Data.Binary as Binary
@@ -37,7 +38,20 @@ data Guide = Guide
   { guideDictionary :: Dictionary -- ^ 'Data.DAWG.Internal.Dictionary.Dictionary' associated with this Guide.
   , guideSize :: SizeType -- ^ Size of array. Stored separately.
   , guideUnits :: Vector GuideUnit -- ^ Array of 'Data.DAWG.Internal.GuideUnit.GuideUnit'. Index is equal to 'Data.DAWG.Internal.Dictionary.Dictionary' index.
-  } deriving (Generic, Binary, NFData)
+  } deriving (Generic, Eq, Show, NFData)
+
+instance Binary Guide where
+  get = do
+    guideDictionary <- get @Dictionary
+    guideSize' <- getWord32le
+    guideUnitsList <- getMany (get @GuideUnit) $ fromIntegral @BaseType @Int guideSize'
+    let guideSize = fromIntegral @BaseType @SizeType guideSize'
+        guideUnits = Vector.fromList guideUnitsList
+    pure Guide{..}
+  put Guide{..} = do
+    put guideDictionary
+    putWord32le $ fromIntegral @SizeType @BaseType guideSize
+    mapM_ (put @GuideUnit) (Vector.toList guideUnits)
 
 -- | Constructs an empty guide.
 empty :: Guide

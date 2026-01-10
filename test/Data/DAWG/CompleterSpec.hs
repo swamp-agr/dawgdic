@@ -15,6 +15,8 @@ import Data.Maybe (fromMaybe, isJust)
 import Test.Hspec
 import Text.Read (readMaybe)
 
+import qualified Data.Binary as Binary
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Vector as Vector
 
 main :: IO ()
@@ -74,3 +76,10 @@ spec = do
       testResult <- readFile completerResultFile
       testExpectation <- readFile "data/completer-answer"
       testResult `shouldBe` testExpectation
+
+    it "Ensures binary compatibility with C++" do
+      cppContents <- BSL.readFile "data/lexicon.guide.dic"
+      let cppGuide = Binary.decode cppContents
+      guide <- G.read "lexicon.dic"
+      cppGuide `shouldBe` guide
+      Binary.encode guide `shouldBe` cppContents

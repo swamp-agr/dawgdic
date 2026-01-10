@@ -124,13 +124,13 @@ library
     build-depends:    base  >= 4.17.2.1 && < 4.25.0.0
                     , binary
                     , bitvec
+                    , bytestring
                     , deepseq
                     , hashable
                     , primitive
                     , containers
                     , vector
                     , vector-algorithms
-                    , vector-binary
                     , vector-hashtables
 
     -- Directories containing source files.
@@ -176,6 +176,8 @@ test-suite spec
     -- Test dependencies.
     build-depends:
                   base  >= 4.17.2.1 && < 4.25.0.0
+                , binary
+                , bytestring
                 , containers
                 , dawgdic
                 , hashable

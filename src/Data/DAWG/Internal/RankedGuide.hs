@@ -25,7 +25,7 @@ import qualified Data.DAWG.Internal.Guide as G
 -- | Another kind of 'Data.DAWG.Internal.Guide.Guide' that provides efficient way to perform completions ranked by values that were stored in the Dictionary.
 -- It has the same layout as 'Data.DAWG.Internal.Guide.Guide'.
 newtype RankedGuide = RankedGuide { rankedGuide :: Guide }
-  deriving newtype (Binary, NFData)
+  deriving newtype (Binary, NFData, Eq, Show)
   deriving stock (Generic)
 
 -- | Gets a child by given ranked guide index.

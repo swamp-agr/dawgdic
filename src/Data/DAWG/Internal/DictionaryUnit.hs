@@ -9,6 +9,8 @@ Stability: experimental
 module Data.DAWG.Internal.DictionaryUnit where
 
 import Data.Binary
+import Data.Binary.Get (getWord32le)
+import Data.Binary.Put (putWord32le)
 import Data.Bits
 import Data.Vector.Unboxed.Mutable (Unbox)
 
@@ -23,7 +25,11 @@ import qualified Data.Vector.Unboxed as UV
 -- | Unit of a 'Data.DAWG.Internal.Dictionary.Dictionary'
 -- or a 'Data.DAWG.Internal.Dictionary.Builder.DictionaryBuilder'.
 newtype DictionaryUnit = DictionaryUnit { base :: BaseType }
-  deriving newtype (Eq, Ord, Num, Bits, Integral, Real, Enum, Binary)
+  deriving newtype (Eq, Ord, Num, Bits, Integral, Real, Enum)
+
+instance Binary DictionaryUnit where
+  get = DictionaryUnit <$> getWord32le
+  put = putWord32le . base
 
 instance Show DictionaryUnit where
   show u = concat
