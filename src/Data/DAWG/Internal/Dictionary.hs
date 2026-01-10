@@ -9,16 +9,17 @@ Stability: experimental
 module Data.DAWG.Internal.Dictionary where
 
 import Control.DeepSeq (NFData)
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Data.Binary
+import Data.Binary.Get (getWord32le)
+import Data.Binary.Put (putWord32le)
 import Data.Bits
 import Data.Char
-import Data.Vector.Binary ()
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 
 import Data.DAWG.Internal.BaseType
-import Data.DAWG.Internal.DictionaryUnit (DictionaryUnit)
+import Data.DAWG.Internal.DictionaryUnit (DictionaryUnit (..))
 
 import qualified Data.Binary as Binary
 import qualified Data.Vector.Unboxed as UV
@@ -38,7 +39,21 @@ import Data.DAWG.Trace
 data Dictionary = Dictionary
   { dictionaryUnits :: UV.Vector DictionaryUnit -- ^ Array of dictionary units.
   , dictionarySize :: SizeType -- ^ Size of the dictionary.
-  } deriving (Generic, Binary, NFData)
+  } deriving (Generic, Eq, Show, NFData)
+
+instance Binary Dictionary where
+  get = do
+    dictionarySize' <- getWord32le
+    when (dictionarySize' < 256 || dictionarySize' `mod` 256 /= 0) do
+      error $ "Invalid size: " <> show dictionarySize'
+    dictionaryUnitsList <- getMany (get @DictionaryUnit)
+      $ fromIntegral @BaseType @Int dictionarySize'
+    let dictionarySize = fromIntegral @BaseType @SizeType dictionarySize'
+        dictionaryUnits = UV.fromList dictionaryUnitsList
+    pure Dictionary{..}
+  put Dictionary{..} = do
+    putWord32le $ fromIntegral @SizeType @BaseType dictionarySize
+    mapM_ (put @DictionaryUnit) (UV.toList dictionaryUnits)
 
 -- | Empty dictionary that does not contain any elements.
 empty :: Dictionary
@@ -183,3 +198,14 @@ dump d = do
   forM_ [0 .. (dictionarySize d) - 1] \ix -> do
     putStrLn $ concat
       [show ix, "\t", show $ dictionaryUnits d UV.! fromIntegral ix]
+
+-- ** Utilities
+
+-- | Read exact amount of items from lazy bytestring by given helper.
+getMany :: forall a. Binary a => Get a -> Int -> Get [a]
+getMany getter n = go [] n
+  where
+    go xs 0 = return $! reverse xs
+    go xs i = do
+      x <- getter
+      x `seq` go (x:xs) (i-1)

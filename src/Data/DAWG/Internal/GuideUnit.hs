@@ -31,7 +31,7 @@ newtype GuideUnit = GuideUnit
        , UCharType -- sibling
        )
   }
-  deriving newtype (Show, Eq, Ord, Binary, NFData)
+  deriving newtype (Show, Eq, Ord, NFData)
 
 newtype instance UV.MVector s GuideUnit = MV_GuideUnit (UV.MVector s (UCharType, UCharType))
 newtype instance UV.Vector GuideUnit = V_GuideUnit (UV.Vector (UCharType, UCharType))
@@ -39,6 +39,15 @@ newtype instance UV.Vector GuideUnit = V_GuideUnit (UV.Vector (UCharType, UCharT
 deriving newtype instance V.MVector UV.MVector GuideUnit
 deriving newtype instance VG.Vector UV.Vector GuideUnit
 deriving newtype instance Unbox GuideUnit
+
+instance Binary GuideUnit where
+  get = do
+    c <- getWord8
+    s <- getWord8
+    pure $! GuideUnit (c, s)
+  put (GuideUnit (c, s)) = do
+    putWord8 c
+    putWord8 s
 
 -- | Empty unit. Equivalent to @0@.
 empty :: GuideUnit

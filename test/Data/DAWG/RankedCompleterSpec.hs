@@ -18,6 +18,8 @@ import Test.Hspec
 import Test.QuickCheck (chooseEnum, chooseInt, forAll, property, shuffle, vectorOf, withMaxSuccess)
 import Text.Read (readMaybe)
 
+import qualified Data.Binary as Binary
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 
@@ -145,3 +147,9 @@ spec = do
             
       withMaxSuccess 10 $ property prop_rankedCompleterCompletes
 
+    it "Ensures binary compatibility with C++" do
+      cppContents <- BSL.readFile "data/lexicon.ranked.dic"
+      let cppGuide = Binary.decode cppContents
+      guide <- G.read "ranked-guide.dic"
+      cppGuide `shouldBe` guide
+      Binary.encode guide `shouldBe` cppContents
